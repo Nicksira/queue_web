@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Queue Display</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #111; color: white; height: 100vh; overflow: hidden; font-family: 'Prompt', sans-serif; display: flex; flex-direction: column; }
+        .header { background: linear-gradient(90deg, #004d40, #00695c); padding: 20px 40px; display: flex; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .header h1 { margin: 0; }
+        .main { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, #263238 0%, #000000 100%); }
+        .q-num { font-size: 16rem; font-weight: bold; color: #00e676; line-height: 1; text-shadow: 0 0 50px rgba(0,230,118,0.4); }
+        .status { font-size: 3rem; color: #ffeb3b; margin-top: 20px; background: rgba(255,255,255,0.1); padding: 10px 40px; border-radius: 50px; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 99; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="overlay"><h1 class="text-white">แตะหน้าจอเพื่อเริ่มระบบ</h1></div>
+
+    <div class="header">
+        <img src="/static/logo.png" height="90" class="me-4" onerror="this.style.display='none'" id="tv-logo">
+        <div>
+            <h1 style="font-size: 1.6rem; opacity: 0.8;" id="tv-hospital-name">โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก</h1>
+            <h1 style="font-size: 2.8rem; font-weight: bold;">ห้องตรวจโรคทั่วไป</h1>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="text-secondary h2">หมายเลขคิว</div>
+        <div class="q-num" id="q-num">---</div>
+        <div class="status" id="status">รอเรียก...</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let ready = false;
+        const base_url = window.location.protocol + "//" + window.location.host;
+        const sound_folder = "/static/announcements/";
+
+        document.getElementById('overlay').onclick = function() { 
+            this.style.display='none'; 
+            ready=true; 
+            // ใช้วิธีสร้าง Audio ใหม่แล้ว Play เพื่อปลดล็อก Auto-play
+            new Audio(base_url + "/static/ding.mp3").play().catch(e => console.log("Init Audio failed")); 
+        };
+
+        socket.on('update_settings', (settings) => {
+            document.getElementById('tv-hospital-name').innerText = settings.hospital_name;
+            document.getElementById('tv-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
+        });
+
+        socket.on('update_display', (data) => {
+            document.getElementById('q-num').innerText = data.number > 0 ? String(data.number).padStart(3, '0') : "---";
+            document.getElementById('status').innerText = data.number > 0 ? "เชิญที่ห้องตรวจ" : "รอเรียก...";
+            
+            if(data.sound_file && ready) {
+                // 1. สร้าง URL เต็มของไฟล์ MP3 ที่ Server เพิ่งสร้าง
+                const sound_url = base_url + sound_folder + data.sound_file;
+                
+                // 2. สร้าง Audio Element ใหม่ทุกครั้ง
+                const audio = new Audio(sound_url);
+                
+                // 3. สั่งเล่นทันที (เนื่องจากเราคลิกปลดล็อกแล้ว วิธีนี้จะทำงาน)
+                audio.play().catch(e => console.log("Audio play blocked (Not ready)"));
+            }
+        });
+    </script>
+</body>
+</html>

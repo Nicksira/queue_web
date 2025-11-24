@@ -1,0 +1,153 @@
+{
+    "date": "2025-11-24",
+    "current_queue": 23,
+    "last_queue": 28,
+    "queues": [
+        {
+            "number": 1,
+            "status": "called",
+            "time": "13:29"
+        },
+        {
+            "number": 2,
+            "status": "called",
+            "time": "13:31"
+        },
+        {
+            "number": 3,
+            "status": "called",
+            "time": "13:38"
+        },
+        {
+            "number": 4,
+            "status": "called",
+            "time": "13:43"
+        },
+        {
+            "number": 5,
+            "status": "called",
+            "time": "13:51"
+        },
+        {
+            "number": 6,
+            "status": "called",
+            "time": "13:52"
+        },
+        {
+            "number": 7,
+            "status": "called",
+            "time": "13:52"
+        },
+        {
+            "number": 8,
+            "status": "called",
+            "time": "13:54"
+        },
+        {
+            "number": 9,
+            "status": "called",
+            "time": "14:03"
+        },
+        {
+            "number": 10,
+            "status": "called",
+            "time": "14:03"
+        },
+        {
+            "number": 11,
+            "status": "called",
+            "time": "14:06"
+        },
+        {
+            "number": 12,
+            "status": "called",
+            "time": "14:06"
+        },
+        {
+            "number": 13,
+            "status": "called",
+            "time": "14:07"
+        },
+        {
+            "number": 14,
+            "status": "called",
+            "time": "14:16"
+        },
+        {
+            "number": 15,
+            "status": "called",
+            "time": "14:18"
+        },
+        {
+            "number": 16,
+            "status": "called",
+            "time": "14:18"
+        },
+        {
+            "number": 17,
+            "status": "called",
+            "time": "14:19"
+        },
+        {
+            "number": 18,
+            "status": "called",
+            "time": "14:26"
+        },
+        {
+            "number": 19,
+            "status": "called",
+            "time": "14:43"
+        },
+        {
+            "number": 20,
+            "status": "called",
+            "time": "14:44"
+        },
+        {
+            "number": 21,
+            "status": "called",
+            "time": "14:44"
+        },
+        {
+            "number": 22,
+            "status": "called",
+            "time": "14:49"
+        },
+        {
+            "number": 23,
+            "status": "called",
+            "time": "15:09"
+        },
+        {
+            "number": 24,
+            "status": "waiting",
+            "time": "15:10"
+        },
+        {
+            "number": 25,
+            "status": "waiting",
+            "time": "15:12"
+        },
+        {
+            "number": 26,
+            "status": "waiting",
+            "time": "17:00"
+        },
+        {
+            "number": 27,
+            "status": "waiting",
+            "time": "17:04"
+        },
+        {
+            "number": 28,
+            "status": "waiting",
+            "time": "17:04"
+        }
+    ],
+    "settings": {
+        "hospital_name": "โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก",
+        "ticket_title": "ห้องตรวจโรค",
+        "ticket_footer": "กรุณารอเรียกหมายเลขของท่าน\nขอบคุณที่ใช้บริการ",
+        "show_logo": true
+    }
+}
