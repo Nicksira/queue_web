@@ -12,17 +12,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
     <style>
-        /* สไตล์หน้าจอ */
+        /* Screen Styles */
         body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
         .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; text-align: center; font-size: 1.8rem; padding: 0 20px; }
         .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; box-shadow: 0 5px 15px rgba(0,176,155,0.4); cursor: pointer; transition: transform 0.2s; }
         .btn-ticket:active { transform: scale(0.95); }
 
-        /* ซ่อนส่วนปริ้น */
+        /* Print Styles */
         #printable-area { display: none; }
-
-        /* สไตล์ตอนปริ้น */
         @media print {
             body * { visibility: hidden; height: 0; overflow: hidden; }
             #printable-area, #printable-area * { visibility: visible; display: block !important; height: auto; }
@@ -58,9 +56,7 @@
         <div id="qrcode-container"></div>
         
         <div class="ticket-number" id="print-num">A-000</div>
-        
         <div class="ticket-wait" id="print-wait">รออีก ... คิว</div>
-        
         <div class="ticket-time" id="print-time">Time: --:--</div>
         <div class="ticket-footer" id="print-footer">...</div>
         <br><br>.
@@ -69,26 +65,33 @@
     <script>
         const socket = io();
 
+        // 1. Load Settings
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
+        // 2. Button Click
         function getTicket() {
+            console.log("Button clicked");
             socket.emit('get_ticket');
         }
 
+        // 3. Receive Ticket & Generate QR
         socket.on('ticket_printed', (data) => {
+            console.log("Data received:", data);
+            
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
-            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
-
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
+            
+            // Handle queue wait time safely
+            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
-            // 1. ลงข้อมูลตัวหนังสือ
+            // A. Fill Text Data
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -97,27 +100,29 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // 2. สร้าง QR Code (แบบ Safe Mode)
+            // B. Generate QR Code (The missing part)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = ""; // ล้างรูปเก่าทิ้งก่อน
+                qrContainer.innerHTML = ""; // Clear old QR
                 
-                // ข้อมูลที่จะใส่ใน QR Code
+                // Complete QR Data string
                 const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
                 
                 try {
-                    // ใช้ new QRCode โดยตรง ไม่ต้องมี option เยอะเกินไป
                     new QRCode(qrContainer, {
                         text: qrDataString,
                         width: 110,
-                        height: 110
+                        height: 110,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
                     });
                 } catch(e) {
                     console.error("QR Code Error:", e);
                 }
             }
 
-            // 3. แสดง Popup
+            // C. Show Popup
             Swal.fire({
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `
@@ -130,7 +135,7 @@
                 showConfirmButton: false
             });
 
-            // 4. สั่งปริ้น
+            // D. Print
             setTimeout(() => {
                 window.print();
             }, 500);
