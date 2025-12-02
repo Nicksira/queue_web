@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import json
 import os
@@ -10,7 +10,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATA_FILE = "queue_data.json"
 
-# --- Database Logic ---
 def load_data():
     today = datetime.date.today().strftime("%Y-%m-%d")
     default_data = {
@@ -25,9 +24,7 @@ def load_data():
             "show_logo": True
         }
     }
-    
     if not os.path.exists(DATA_FILE): return default_data
-        
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -44,30 +41,47 @@ def save_data(data):
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- Routes ---
 @app.route('/')
 def index(): return render_template('kiosk.html')
-
 @app.route('/tv')
 def tv_display(): return render_template('tv.html')
-
 @app.route('/staff')
 def staff_control(): return render_template('staff.html')
 
-# --- Socket Events ---
 @socketio.on('connect')
 def handle_connect():
     data = load_data()
+    emit('update_settings', data['settings'])
     emit('update_display', {'number': data['current_queue'], 'play_sound': False})
     emit('update_staff', {'waiting_count': len([q for q in data['queues'] if q['status'] == 'waiting'])})
-    emit('update_settings', data['settings'])
 
-@socketio.on('save_settings')
-def handle_save_settings(settings):
+@socketio.on('get_ticket')
+def handle_ticket():
     data = load_data()
-    data['settings'] = settings
+    new_num = data['last_queue'] + 1
+    data['last_queue'] = new_num
+    
+    current_time = datetime.datetime.now().strftime("%H:%M")
+    data['queues'].append({
+        "number": new_num,
+        "status": "waiting",
+        "time": current_time
+    })
     save_data(data)
-    emit('update_settings', settings, broadcast=True)
+    
+    # คำนวณคิวรอ
+    waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
+    queues_ahead = len(waiting_list) - 1
+    if queues_ahead < 0: queues_ahead = 0
+    
+    # ส่งข้อมูลกลับไปครบชุด
+    emit('ticket_printed', {
+        'number': new_num, 
+        'settings': data['settings'],
+        'queues_ahead': queues_ahead
+    })
+    
+    emit('update_staff', {'waiting_count': len(waiting_list)}, broadcast=True)
 
 @socketio.on('call_next')
 def handle_next():
@@ -87,6 +101,13 @@ def handle_repeat():
     if data['current_queue'] > 0:
         emit('update_display', {'number': data['current_queue'], 'play_sound': True}, broadcast=True)
 
+@socketio.on('save_settings')
+def handle_save(settings):
+    data = load_data()
+    data['settings'] = settings
+    save_data(data)
+    emit('update_settings', settings, broadcast=True)
+
 @socketio.on('reset_system')
 def handle_reset():
     data = load_data()
@@ -97,35 +118,5 @@ def handle_reset():
     emit('update_display', {'number': 0, 'play_sound': False}, broadcast=True)
     emit('update_staff', {'waiting_count': 0}, broadcast=True)
 
-@socketio.on('get_ticket')
-def handle_ticket():
-    data = load_data()
-    new_num = data['last_queue'] + 1
-    data['last_queue'] = new_num
-    
-    current_time = datetime.datetime.now().strftime("%H:%M")
-    
-    data['queues'].append({
-        "number": new_num,
-        "status": "waiting",
-        "time": current_time
-    })
-    save_data(data)
-    
-    # 🔥 คำนวณจำนวนคิวที่รออยู่ก่อนหน้า (Wait Q)
-    waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = len(waiting_list) - 1 # ลบตัวเองออก
-    if queues_ahead < 0: queues_ahead = 0
-    
-    # ส่งข้อมูลกลับไปหาคนกด (เพิ่ม queues_ahead)
-    emit('ticket_printed', {
-        'number': new_num, 
-        'settings': data['settings'],
-        'queues_ahead': queues_ahead 
-    })
-    
-    emit('update_staff', {'waiting_count': len(waiting_list)}, broadcast=True)
-
 if __name__ == '__main__':
-    # ใช้ gunicorn รันแทนใน production แต่เก็บไว้เผื่อรัน local
     socketio.run(app, host='0.0.0.0', port=5005, debug=True)
