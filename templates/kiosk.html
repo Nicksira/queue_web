@@ -12,14 +12,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
     <style>
+        /* สไตล์หน้าจอ */
         body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
         .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; text-align: center; font-size: 1.8rem; padding: 0 20px; }
         .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; box-shadow: 0 5px 15px rgba(0,176,155,0.4); cursor: pointer; transition: transform 0.2s; }
         .btn-ticket:active { transform: scale(0.95); }
 
+        /* ซ่อนส่วนปริ้น */
         #printable-area { display: none; }
 
+        /* สไตล์ตอนสั่งปริ้น */
         @media print {
             body * { visibility: hidden; height: 0; overflow: hidden; }
             #printable-area, #printable-area * { visibility: visible; display: block !important; height: auto; }
@@ -43,6 +46,7 @@
     <div class="kiosk-card">
         <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
         <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
+        
         <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
     </div>
 
@@ -72,23 +76,27 @@
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
-        // 2. ฟังก์ชันกดปุ่ม (Button Click)
+        // 2. ฟังก์ชันกดปุ่ม
         function getTicket() {
+            console.log("Button clicked");
             socket.emit('get_ticket');
         }
 
         // 3. รับข้อมูลบัตรคิว
         socket.on('ticket_printed', (data) => {
+            console.log("Data received:", data);
+            
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
-            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
-
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
+            
+            // เช็คจำนวนคิวรอ (ป้องกันค่าว่าง)
+            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
-            // A. ใส่ข้อมูลลงในกระดาษ
+            // A. ลงข้อมูลตัวหนังสือ
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -97,19 +105,26 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code
+            // B. สร้าง QR Code (ข้อมูลครบ: ชื่อ รพ., เลขคิว, รออีกกี่คิว, วันเวลา)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
                 qrContainer.innerHTML = "";
+                
+                // ข้อมูลใน QR Code
                 const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
-                new QRCode(qrContainer, {
-                    text: qrDataString,
-                    width: 110,
-                    height: 110,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.M
-                });
+                
+                try {
+                    new QRCode(qrContainer, {
+                        text: qrDataString,
+                        width: 110,
+                        height: 110,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
+                    });
+                } catch(e) {
+                    console.error("QR Code Error:", e);
+                }
             }
 
             // C. แสดง Popup
