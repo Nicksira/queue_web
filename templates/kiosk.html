@@ -22,7 +22,7 @@
         /* ซ่อนส่วนปริ้น */
         #printable-area { display: none; }
 
-        /* สไตล์ตอนสั่งปริ้น */
+        /* สไตล์ตอนปริ้น */
         @media print {
             body * { visibility: hidden; height: 0; overflow: hidden; }
             #printable-area, #printable-area * { visibility: visible; display: block !important; height: auto; }
@@ -46,7 +46,6 @@
     <div class="kiosk-card">
         <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
         <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
-        
         <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
     </div>
 
@@ -70,33 +69,26 @@
     <script>
         const socket = io();
 
-        // 1. รับค่า Settings
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
-        // 2. ฟังก์ชันกดปุ่ม
         function getTicket() {
-            console.log("Button clicked");
             socket.emit('get_ticket');
         }
 
-        // 3. รับข้อมูลบัตรคิว
         socket.on('ticket_printed', (data) => {
-            console.log("Data received:", data);
-            
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('th-TH');
-            const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
-            
-            // เช็คจำนวนคิวรอ (ป้องกันค่าว่าง)
             const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
             const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
-            // A. ลงข้อมูลตัวหนังสือ
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH');
+            const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
+
+            // 1. ลงข้อมูลตัวหนังสือ
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -105,29 +97,27 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (ข้อมูลครบ: ชื่อ รพ., เลขคิว, รออีกกี่คิว, วันเวลา)
+            // 2. สร้าง QR Code (แบบ Safe Mode)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = "";
+                qrContainer.innerHTML = ""; // ล้างรูปเก่าทิ้งก่อน
                 
-                // ข้อมูลใน QR Code
+                // ข้อมูลที่จะใส่ใน QR Code
                 const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
                 
                 try {
+                    // ใช้ new QRCode โดยตรง ไม่ต้องมี option เยอะเกินไป
                     new QRCode(qrContainer, {
                         text: qrDataString,
                         width: 110,
-                        height: 110,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.M
+                        height: 110
                     });
                 } catch(e) {
                     console.error("QR Code Error:", e);
                 }
             }
 
-            // C. แสดง Popup
+            // 3. แสดง Popup
             Swal.fire({
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `
@@ -140,7 +130,7 @@
                 showConfirmButton: false
             });
 
-            // D. สั่งปริ้น
+            // 4. สั่งปริ้น
             setTimeout(() => {
                 window.print();
             }, 500);
