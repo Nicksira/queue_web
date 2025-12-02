@@ -71,40 +71,36 @@
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
-        // ฟังก์ชันกดปุ่ม
         function getTicket() {
-            console.log("Button Pressed"); 
             socket.emit('get_ticket');
         }
 
         socket.on('ticket_printed', (data) => {
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            const queuesAhead = data.queues_ahead; // จำนวนคิวที่รอ
             
+            // ตรวจสอบว่ามีข้อมูลคิวรอส่งมาไหม ถ้าไม่มีให้ใส่ 0
+            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
+
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
-            
-            // ข้อความคิวรอ
-            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
-            // 1. ลงข้อมูลตัวหนังสือ
+            // 1. ใส่ข้อมูลลงกระดาษ
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
-            document.getElementById('print-wait').innerText = waitText; // ใส่ในกระดาษ
+            document.getElementById('print-wait').innerText = waitText;
             document.getElementById('print-footer').innerText = settings.ticket_footer;
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // 2. สร้าง QR Code (รวมข้อมูลจำนวนคิวรอ)
+            // 2. สร้าง QR Code
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
                 qrContainer.innerHTML = "";
-                
                 const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
-                
                 new QRCode(qrContainer, {
                     text: qrDataString,
                     width: 110,
