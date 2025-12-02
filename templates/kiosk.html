@@ -10,7 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        /* --- Styles หน้าจอกดบัตร --- */
+        /* --- Styles สำหรับหน้าจอปกติ (Screen) --- */
         body {
             font-family: 'Prompt', sans-serif;
             background: #e3f2fd;
@@ -53,12 +53,12 @@
         }
         .btn-ticket:active { transform: scale(0.95); }
 
-        /* --- ซ่อนส่วนที่จะปริ้น ไม่ให้เห็นบนหน้าจอ --- */
+        /* --- ซ่อนส่วนที่จะปริ้น ไม่ให้เห็นบนหน้าจอปกติ --- */
         #printable-area {
             display: none;
         }
 
-        /* --- Styles สำหรับตอนสั่งปริ้น (Print Mode) --- */
+        /* --- Styles สำหรับตอนสั่งปริ้น (Print Mode Only) --- */
         @media print {
             body * { visibility: hidden; height: 0; overflow: hidden; }
             #printable-area, #printable-area * { visibility: visible; display: block !important; height: auto; }
@@ -71,7 +71,7 @@
             .ticket-header { font-size: 16px; font-weight: bold; margin-bottom: 5px; line-height: 1.2; }
             .ticket-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 5px; }
             
-            /* จัด QR Code ให้อยู่กึ่งกลาง */
+            /* พื้นที่ QR Code บนกระดาษ */
             #qrcode-container { display: flex !important; justify-content: center !important; margin: 10px auto !important; }
             
             .ticket-number { font-size: 40px; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; margin: 10px 0; border-radius: 8px; }
@@ -84,7 +84,7 @@
 </head>
 <body>
 
-    <h1 class="header-main" id="live-hospital-name">...</h1>
+    <h1 class="header-main" id="live-hospital-name">กำลังโหลด...</h1>
     
     <div class="kiosk-card">
         <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
@@ -95,15 +95,15 @@
     <div id="printable-area">
         <br>
         <img src="/static/logo.png" class="ticket-logo" id="print-logo">
-        <div class="ticket-header" id="print-hospital">Hospital Name</div>
-        <div class="ticket-title" id="print-title">Queue Ticket</div>
+        <div class="ticket-header" id="print-hospital">...</div>
+        <div class="ticket-title" id="print-title">...</div>
         
         <div id="qrcode-container"></div>
         
         <div class="ticket-number" id="print-num">A-000</div>
         
         <div class="ticket-time" id="print-time">Time: --:--</div>
-        <div class="ticket-footer" id="print-footer">Thank you</div>
+        <div class="ticket-footer" id="print-footer">...</div>
         <br><br>.
     </div>
 
@@ -111,16 +111,18 @@
     <script>
         const socket = io();
 
-        // รับค่า Setting
+        // 1. รับค่า Setting มาแสดงบนหน้าจอ
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
+        // 2. ฟังก์ชันกดปุ่ม
         function getTicket() {
             socket.emit('get_ticket');
         }
 
+        // 3. เมื่อได้รับข้อมูลบัตรคิวกลับมา
         socket.on('ticket_printed', (data) => {
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
@@ -128,7 +130,7 @@
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // --- 1. เตรียมข้อมูลลงกระดาษ ---
+            // --- A. ยัดข้อมูลลงในแบบฟอร์มปริ้น ---
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -136,13 +138,15 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // --- 2. สร้าง QR Code (ส่วนที่หายไป) ---
+            // --- B. สร้าง QR Code ใหม่ (แบบ Local) ---
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = ""; // ล้างรูปเก่า
+                qrContainer.innerHTML = ""; // ล้างรูปเก่าทิ้งก่อน
                 
+                // ข้อมูลที่จะใส่ใน QR Code
                 const qrDataString = `คิว: ${numberPadded}\n${settings.hospital_name}\nเวลา: ${timeStr}`;
                 
+                // คำสั่งสร้าง QR Code
                 new QRCode(qrContainer, {
                     text: qrDataString,
                     width: 100,
@@ -153,7 +157,7 @@
                 });
             }
 
-            // --- 3. แสดง Popup และสั่ง Print ---
+            // --- C. แสดง Popup แจ้งเตือนสวยๆ ---
             Swal.fire({
                 title: 'กำลังพิมพ์บัตรคิว...',
                 html: `
@@ -165,7 +169,7 @@
                 showConfirmButton: false
             });
 
-            // สั่ง Browser Print (รอ 0.5 วิ ให้ QR วาดเสร็จ)
+            // --- D. สั่ง Browser Print (หน่วงเวลา 0.5 วิ ให้ QR วาดเสร็จ) ---
             setTimeout(() => {
                 window.print();
             }, 500);
