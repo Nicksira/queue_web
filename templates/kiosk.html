@@ -13,40 +13,68 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
     <style>
+        /* สไตล์หน้าจอปกติ */
         body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
         .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; font-size: 1.8rem; }
         .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; cursor: pointer; }
 
-        /* ส่วนปริ้น: ใช้ opacity 0 แทน display:none เพื่อให้ QR วาดได้ */
-        #printable-area { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: white; z-index: -1; opacity: 0; 
+        /* ส่วนปริ้น: ใช้ position fixed และ z-index ต่ำๆ แทนการซ่อน */
+        #printable-area {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: -1; /* ซ่อนไว้หลังสุด */
+            opacity: 0;  /* มองไม่เห็น */
         }
 
+        /* --- สไตล์ตอนสั่งปริ้น (สำคัญมาก) --- */
         @media print {
-            body * { visibility: hidden; }
-            #printable-area { opacity: 1; visibility: visible; z-index: 9999; }
-            #printable-area * { visibility: visible; }
-            
-            .print-container { 
-                width: 100%; text-align: center; font-family: 'Courier New', monospace; color: black; padding-top: 10px;
+            /* ซ่อนทุกอย่างที่เป็น UI */
+            body * {
+                visibility: hidden;
             }
+            
+            /* ดึงส่วนปริ้นกลับมาแสดงและจัดตำแหน่ง */
+            #printable-area {
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 9999 !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* บังคับให้ลูกๆ ของ printable-area แสดงผล */
+            #printable-area * {
+                visibility: visible !important;
+            }
+            
+            /* จัดหน้าตาในกระดาษ */
+            .p-container { text-align: center; color: black; font-family: 'Courier New', monospace; padding-top: 10px; }
             .p-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
             .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; }
             .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
             
-            /* กล่อง QR Code ที่แก้ไขแล้ว */
+            /* กล่อง QR Code */
             #qrcode-box { 
-                width: 120px; height: 120px; margin: 10px auto; 
                 display: flex; justify-content: center; align-items: center;
+                margin: 10px auto; 
+                width: 100px; height: 100px;
             }
-            #qrcode-box img { width: 100%; }
-
-            .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; padding: 5px 15px; border-radius: 10px; display: inline-block; margin: 10px 0; }
+            #qrcode-box img { width: 100%; height: auto; }
+            
+            .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
             .p-wait { font-size: 14px; margin-bottom: 5px; }
-            .p-time { font-size: 12px; margin-bottom: 10px; }
+            .p-time { font-size: 12px; }
             .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; white-space: pre-wrap; }
+            
             @page { margin: 0; }
         }
     </style>
@@ -62,7 +90,7 @@
     </div>
 
     <div id="printable-area">
-        <div class="print-container">
+        <div class="p-container">
             <img src="/static/logo.png" class="p-logo" id="p-logo">
             <div class="p-header" id="p-hospital">...</div>
             <div class="p-title" id="p-title">...</div>
@@ -110,27 +138,25 @@
             document.getElementById('p-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('p-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (แบบ Safe Mode + Force Render)
+            // B. สร้าง QR Code (แบบ Safe Mode)
             const qrBox = document.getElementById("qrcode-box");
             qrBox.innerHTML = ""; // ล้างรูปเก่าทิ้ง
             
-            // ใช้ setTimeout เพื่อให้แน่ใจว่า Element พร้อมก่อนวาด
-            setTimeout(() => {
-                try {
-                    const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\n${dateStr} ${timeStr}`;
-                    
-                    new QRCode(qrBox, {
-                        text: qrText,
-                        width: 120,
-                        height: 120,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.L
-                    });
-                } catch (error) {
-                    console.error("QR Error:", error);
-                }
-            }, 100);
+            try {
+                // สร้าง QR Code (ข้อมูลครบ)
+                const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
+                
+                new QRCode(qrBox, {
+                    text: qrText,
+                    width: 100,
+                    height: 100,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.L
+                });
+            } catch (error) {
+                console.log("QR Error skipped"); 
+            }
 
             // C. Popup
             Swal.fire({
@@ -141,7 +167,7 @@
                 showConfirmButton: false
             });
 
-            // D. ปริ้น (หน่วงเวลานานขึ้น เพื่อให้ QR วาดเสร็จชัวร์ๆ)
+            // D. ปริ้น (หน่วงเวลาให้ QR วาดเสร็จ)
             setTimeout(() => {
                 window.print();
             }, 800);
