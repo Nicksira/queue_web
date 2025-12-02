@@ -109,6 +109,23 @@
                     });
                 } catch(e) {}
             }
+            // --- 🟢 ส่วนที่หายไป: สร้าง QR Code (ห้ามแก้) ---
+            const qrContainer = document.getElementById("qrcode-container");
+            if(qrContainer) {
+                qrContainer.innerHTML = "";
+                // ข้อมูลครบถ้วน: ชื่อ รพ., คิว, จำนวนที่รอ, วันที่ เวลา
+                const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\n${dateStr} ${timeStr}`;
+                
+                new QRCode(qrContainer, {
+                    text: qrDataString,
+                    width: 110,
+                    height: 110,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
+            }
+            // --------------------------------------------------
 
             // 3. Popup
             Swal.fire({
