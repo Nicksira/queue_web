@@ -14,78 +14,43 @@
     
     <style>
         /* สไตล์หน้าจอปกติ */
-        body { 
-            font-family: 'Prompt', sans-serif; 
-            background: #e3f2fd; 
-            height: 100vh; 
-            margin: 0;
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        
-        .kiosk-card { 
-            background: white; 
-            padding: 40px; 
-            border-radius: 30px; 
-            text-align: center; 
-            width: 90%; 
-            max-width: 500px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-        }
-        
-        .header-main { 
-            font-weight: 600; 
-            color: #004d40; 
-            margin-bottom: 20px; 
-            font-size: 1.8rem; 
-        }
-        
-        .btn-ticket { 
-            background: linear-gradient(45deg, #00b09b, #96c93d); 
-            color: white; 
-            padding: 20px; 
-            font-size: 2rem; 
-            border-radius: 50px; 
-            width: 100%; 
-            border: none; 
-            font-weight: bold; 
-            cursor: pointer; 
-        }
+        body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
+        .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; font-size: 1.8rem; }
+        .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; cursor: pointer; }
 
-        /* --- ส่วนที่จะปริ้น (ซ่อนไว้แบบไม่ใช้ display:none) --- */
+        /* ส่วนปริ้น: ซ่อนไว้โดยใช้ position absolute ไกลๆ แทน display:none เพื่อให้ QR วาดได้ */
         #printable-area {
             position: absolute;
             top: -9999px;
             left: -9999px;
-            width: 80mm; /* ขนาดกระดาษใบเสร็จมาตรฐาน */
+            width: 80mm; /* ขนาดกระดาษใบเสร็จ */
             background: white;
-            padding: 10px;
+            padding: 5px;
+            color: black;
             text-align: center;
             font-family: 'Courier New', monospace;
-            color: black;
         }
 
         /* --- สไตล์ตอนสั่งปริ้น (สำคัญมาก) --- */
         @media print {
+            /* ซ่อนทุกอย่างที่เป็น UI */
             body * {
-                visibility: hidden; /* ซ่อนทุกอย่าง */
-                height: 0; 
-                overflow: hidden;
+                visibility: hidden;
             }
             
-            /* ดึงส่วนปริ้นกลับมาแสดง */
+            /* ดึงส่วนปริ้นกลับมาแสดงและจัดตำแหน่ง */
             #printable-area {
                 visibility: visible;
                 position: absolute;
                 top: 0;
                 left: 0;
                 width: 100%;
-                height: auto;
                 margin: 0;
                 padding: 0;
             }
+            
+            /* บังคับให้ลูกๆ ของ printable-area แสดงผล */
             #printable-area * {
                 visibility: visible;
             }
@@ -95,10 +60,13 @@
             .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; }
             .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
             
+            /* กล่อง QR Code */
             #qrcode-box { 
-                display: flex; justify-content: center; margin: 10px auto; 
+                display: flex; justify-content: center; align-items: center;
+                margin: 10px auto; 
                 width: 100px; height: 100px;
             }
+            #qrcode-box img { width: 100%; height: auto; }
             
             .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
             .p-wait { font-size: 14px; margin-bottom: 5px; }
@@ -171,8 +139,8 @@
             qrBox.innerHTML = ""; // ล้างรูปเก่าทิ้ง
             
             try {
-                // สร้าง QR Code แบบง่ายๆ (ลดความเสี่ยง Error)
-                const qrText = `Q:${numberPadded} | ${timeStr}`;
+                // สร้าง QR Code (ข้อมูลครบ)
+                const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
                 
                 new QRCode(qrBox, {
                     text: qrText,
@@ -183,7 +151,7 @@
                     correctLevel : QRCode.CorrectLevel.L
                 });
             } catch (error) {
-                console.log("QR Error skipped"); // ถ้า error ก็แค่ข้ามไป ไม่ให้โปรแกรมพัง
+                console.log("QR Error skipped"); 
             }
 
             // C. Popup
