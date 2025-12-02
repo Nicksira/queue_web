@@ -66,20 +66,27 @@
     <script>
         const socket = io();
 
+        // เช็คว่าเชื่อมต่อ Server ได้ไหม
+        socket.on('connect', () => {
+            console.log("✅ Connected to Server");
+        });
+
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
+        // ฟังก์ชันกดปุ่ม (ต้องมีตรงนี้!)
         function getTicket() {
+            console.log("🖱️ Button Clicked!"); 
             socket.emit('get_ticket');
         }
 
         socket.on('ticket_printed', (data) => {
+            console.log("📩 Ticket Data Received:", data);
+            
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            
-            // ตรวจสอบว่ามีข้อมูลคิวรอส่งมาไหม ถ้าไม่มีให้ใส่ 0
             const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
             const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
@@ -87,7 +94,7 @@
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // 1. ใส่ข้อมูลลงกระดาษ
+            // 1. ลงข้อมูล
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
