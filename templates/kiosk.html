@@ -27,7 +27,6 @@
             .ticket-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
             .ticket-header { font-size: 16px; font-weight: bold; margin-bottom: 5px; line-height: 1.2; }
             .ticket-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 5px; }
-            /* จัด QR Code ให้อยู่กึ่งกลาง */
             #qrcode-container { display: flex !important; justify-content: center !important; margin: 10px auto !important; }
             .ticket-number { font-size: 40px; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; margin: 10px 0; border-radius: 8px; }
             .ticket-wait { font-size: 14px; font-weight: bold; margin: 5px 0; }
@@ -56,17 +55,18 @@
         <div id="qrcode-container"></div>
         
         <div class="ticket-number" id="print-num">A-000</div>
+        
         <div class="ticket-wait" id="print-wait">รออีก ... คิว</div>
+        
         <div class="ticket-time" id="print-time">Time: --:--</div>
         <div class="ticket-footer" id="print-footer">...</div>
         <br><br>.
     </div>
 
     <script>
-        // ประกาศ Socket
         const socket = io();
 
-        // 1. รับค่าการตั้งค่า
+        // 1. รับค่า Settings
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
@@ -104,12 +104,13 @@
             // B. สร้าง QR Code (แบบปลอดภัย)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = ""; // ล้างรูปเก่า
+                qrContainer.innerHTML = ""; // ล้างรูปเก่าทิ้งก่อน
                 
                 // ข้อมูลใน QR: รพ, คิว, รออีกกี่คิว, วันเวลา
                 const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\n${dateStr} ${timeStr}`;
                 
                 try {
+                    // ใช้ new QRCode โดยตรง ไม่ต้องมี option เยอะเกินไป
                     new QRCode(qrContainer, {
                         text: qrDataString,
                         width: 110,
