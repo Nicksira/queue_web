@@ -128,7 +128,7 @@
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // --- 1. เตรียมข้อมูล ---
+            // --- 1. เตรียมข้อมูลลงกระดาษ ---
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -136,20 +136,22 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // --- 2. สร้าง QR Code (แบบ Local ไม่ต้องรอเน็ต) ---
+            // --- 2. สร้าง QR Code (ส่วนที่หายไป) ---
             const qrContainer = document.getElementById("qrcode-container");
-            qrContainer.innerHTML = ""; // ล้างรูปเก่า
-            
-            const qrDataString = `คิว: ${numberPadded}\n${settings.hospital_name}\nเวลา: ${timeStr}`;
-            
-            new QRCode(qrContainer, {
-                text: qrDataString,
-                width: 80,
-                height: 80,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
+            if(qrContainer) {
+                qrContainer.innerHTML = ""; // ล้างรูปเก่า
+                
+                const qrDataString = `คิว: ${numberPadded}\n${settings.hospital_name}\nเวลา: ${timeStr}`;
+                
+                new QRCode(qrContainer, {
+                    text: qrDataString,
+                    width: 100,
+                    height: 100,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
 
             // --- 3. แสดง Popup และสั่ง Print ---
             Swal.fire({
@@ -163,7 +165,7 @@
                 showConfirmButton: false
             });
 
-            // สั่ง Browser Print (หน่วงเวลาสั้นๆ ให้ QR วาดเสร็จ)
+            // สั่ง Browser Print (รอ 0.5 วิ ให้ QR วาดเสร็จ)
             setTimeout(() => {
                 window.print();
             }, 500);
