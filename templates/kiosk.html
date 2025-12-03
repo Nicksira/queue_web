@@ -16,121 +16,149 @@
         /* สไตล์หน้าจอปกติ */
         body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
         .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; text-align: center; font-size: 1.8rem; padding: 0 20px; }
-        .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; box-shadow: 0 5px 15px rgba(0,176,155,0.4); cursor: pointer; transition: transform 0.2s; }
-        .btn-ticket:active { transform: scale(0.95); }
+        .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; font-size: 1.8rem; }
+        .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; cursor: pointer; }
 
-        /* ซ่อนส่วนปริ้น */
-        #printable-area { display: none; }
+        /* ส่วนปริ้น: ใช้ position fixed และ z-index ต่ำๆ แทนการซ่อน */
+        #printable-area {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: -1; /* ซ่อนไว้หลังสุด */
+            opacity: 0;  /* มองไม่เห็น */
+        }
 
-        /* สไตล์ตอนสั่งปริ้น */
+        /* --- สไตล์ตอนสั่งปริ้น (สำคัญมาก) --- */
         @media print {
-            body * { visibility: hidden; height: 0; overflow: hidden; }
-            #printable-area, #printable-area * { visibility: visible; display: block !important; height: auto; }
-            #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; background: white; color: black; font-family: 'Courier New', monospace; text-align: center; }
-            .ticket-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
-            .ticket-header { font-size: 16px; font-weight: bold; margin-bottom: 5px; line-height: 1.2; }
-            .ticket-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 5px; }
+            /* ซ่อนทุกอย่างที่เป็น UI */
+            body * {
+                visibility: hidden;
+            }
             
-            /* พื้นที่ QR Code */
-            #qrcode-container { display: flex !important; justify-content: center !important; margin: 10px auto !important; }
+            /* ดึงส่วนปริ้นกลับมาแสดงและจัดตำแหน่ง */
+            #printable-area {
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 9999 !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
             
-            .ticket-number { font-size: 40px; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; margin: 10px 0; border-radius: 8px; }
-            .ticket-wait { font-size: 14px; font-weight: bold; margin: 5px 0; }
-            .ticket-time { font-size: 12px; margin-bottom: 15px; }
-            .ticket-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 5px; white-space: pre-wrap; }
+            /* บังคับให้ลูกๆ ของ printable-area แสดงผล */
+            #printable-area * {
+                visibility: visible !important;
+            }
+            
+            /* จัดหน้าตาในกระดาษ */
+            .p-container { text-align: center; color: black; font-family: 'Courier New', monospace; padding-top: 10px; }
+            .p-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
+            .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; }
+            .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
+            
+            /* กล่อง QR Code */
+            #qrcode-box { 
+                display: flex; justify-content: center; align-items: center;
+                margin: 10px auto; 
+                width: 100px; height: 100px;
+            }
+            #qrcode-box img { width: 100%; height: auto; }
+            
+            .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
+            .p-wait { font-size: 14px; margin-bottom: 5px; }
+            .p-time { font-size: 12px; }
+            .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; white-space: pre-wrap; }
+            
             @page { margin: 0; }
         }
     </style>
 </head>
 <body>
 
-    <h1 class="header-main" id="live-hospital-name">...</h1>
+    <h1 class="header-main" id="screen-hospital">...</h1>
     
     <div class="kiosk-card">
-        <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
+        <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="screen-logo">
         <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
         <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
     </div>
 
     <div id="printable-area">
-        <br>
-        <img src="/static/logo.png" class="ticket-logo" id="print-logo">
-        <div class="ticket-header" id="print-hospital">...</div>
-        <div class="ticket-title" id="print-title">...</div>
-        
-        <div id="qrcode-container"></div>
-        
-        <div class="ticket-number" id="print-num">A-000</div>
-        
-        <div class="ticket-wait" id="print-wait">รออีก ... คิว</div>
-        
-        <div class="ticket-time" id="print-time">Time: --:--</div>
-        <div class="ticket-footer" id="print-footer">...</div>
-        <br><br>.
+        <div class="p-container">
+            <img src="/static/logo.png" class="p-logo" id="p-logo">
+            <div class="p-header" id="p-hospital">...</div>
+            <div class="p-title" id="p-title">...</div>
+            
+            <div id="qrcode-box"></div>
+            
+            <div class="p-number" id="p-num">A-000</div>
+            <div class="p-wait" id="p-wait">...</div>
+            <div class="p-time" id="p-time">...</div>
+            <div class="p-footer" id="p-footer">...</div>
+        </div>
     </div>
 
     <script>
         const socket = io();
 
-        // 1. รับค่า Settings
+        // 1. รับค่า Setting
         socket.on('update_settings', (settings) => {
-            document.getElementById('live-hospital-name').innerText = settings.hospital_name;
-            document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
+            document.getElementById('screen-hospital').innerText = settings.hospital_name;
+            document.getElementById('screen-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
-        // 2. ฟังก์ชันกดปุ่ม
+        // 2. กดปุ่ม
         function getTicket() {
-            console.log("Button Clicked");
             socket.emit('get_ticket');
         }
 
-        // 3. รับข้อมูลเพื่อปริ้น
+        // 3. รับข้อมูล + สร้าง QR + ปริ้น
         socket.on('ticket_printed', (data) => {
-            console.log("Data:", data);
-            
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            // ดึงข้อมูลคิวรอ (ถ้าไม่มีให้เป็น 0)
-            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const queuesAhead = data.queues_ahead || 0;
             const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
-
+            
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // A. เอาข้อมูลใส่กระดาษ
-            document.getElementById('print-hospital').innerText = settings.hospital_name;
-            document.getElementById('print-title').innerText = settings.ticket_title;
-            document.getElementById('print-num').innerText = numberPadded;
-            document.getElementById('print-wait').innerText = waitText;
-            document.getElementById('print-footer').innerText = settings.ticket_footer;
-            document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
-            document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
+            // A. ใส่ข้อมูลลงกระดาษ
+            document.getElementById('p-hospital').innerText = settings.hospital_name;
+            document.getElementById('p-title').innerText = settings.ticket_title;
+            document.getElementById('p-num').innerText = numberPadded;
+            document.getElementById('p-wait').innerText = waitText;
+            document.getElementById('p-footer').innerText = settings.ticket_footer;
+            document.getElementById('p-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
+            document.getElementById('p-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (แบบปลอดภัย ไม่พัง)
-            const qrContainer = document.getElementById("qrcode-container");
-            if(qrContainer) {
-                qrContainer.innerHTML = ""; // ล้างรูปเก่า
+            // B. สร้าง QR Code (แบบ Safe Mode)
+            const qrBox = document.getElementById("qrcode-box");
+            qrBox.innerHTML = ""; // ล้างรูปเก่าทิ้ง
+            
+            try {
+                // สร้าง QR Code (ข้อมูลครบ)
+                const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
                 
-                // ข้อมูลใน QR: รพ, คิว, รออีกกี่คิว, วันเวลา
-                const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
-                
-                try {
-                    new QRCode(qrContainer, {
-                        text: qrDataString,
-                        width: 110,
-                        height: 110,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.M
-                    });
-                } catch(err) {
-                    console.error("QR Error:", err);
-                }
+                new QRCode(qrBox, {
+                    text: qrText,
+                    width: 100,
+                    height: 100,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.L
+                });
+            } catch (error) {
+                console.log("QR Error skipped"); 
             }
 
-            // C. แสดง Popup
+            // C. Popup
             Swal.fire({
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
@@ -139,10 +167,10 @@
                 showConfirmButton: false
             });
 
-            // D. สั่งปริ้น
+            // D. ปริ้น (หน่วงเวลาให้ QR วาดเสร็จ)
             setTimeout(() => {
                 window.print();
-            }, 500);
+            }, 800);
         });
     </script>
 </body>
