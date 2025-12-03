@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import json
 import os
@@ -41,6 +41,14 @@ def tv_display(): return render_template('tv.html')
 @app.route('/staff')
 def staff_control(): return render_template('staff.html')
 
+# 🟢 เพิ่ม Route ใหม่สำหรับหน้า QR Code
+@app.route('/ticket')
+def ticket_info():
+    no = request.args.get('no', '---')
+    wait = request.args.get('wait', '0')
+    time = request.args.get('time', '--:--')
+    return render_template('ticket_info.html', no=no, wait=wait, time=time)
+
 @socketio.on('connect')
 def handle_connect():
     data = load_data()
@@ -59,10 +67,8 @@ def handle_ticket():
     })
     save_data(data)
     
-    # คำนวณคิวที่รอ (Wait Queue)
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = len(waiting_list) - 1
-    if queues_ahead < 0: queues_ahead = 0
+    queues_ahead = max(0, len(waiting_list) - 1)
     
     emit('ticket_printed', {
         'number': new_num, 
