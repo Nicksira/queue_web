@@ -64,12 +64,12 @@ def handle_ticket():
     })
     save_data(data)
     
-    # 🔥 ส่วนที่เพิ่ม: คำนวณว่าต้องรออีกกี่คิว
+    # 🟢 คำนวณคิวรอ
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = len(waiting_list) - 1 # ลบตัวเองออก
+    queues_ahead = len(waiting_list) - 1
     if queues_ahead < 0: queues_ahead = 0
     
-    # ส่งข้อมูล queues_ahead ไปด้วย
+    # ส่งข้อมูลกลับไปครบชุด
     emit('ticket_printed', {
         'number': new_num, 
         'settings': data['settings'],
