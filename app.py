@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO, emit, join_room
+from gtts import gTTS  # 🟢 เพิ่มไลบรารีเสียง
 import json
 import os
 import datetime
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-change-this'
@@ -12,6 +14,26 @@ DATA_FILE = "queue_data.json"
 HOSPITALS_FILE = "hospitals.json"
 ADMIN_PASSWORD = "admin"
 
+# สร้างโฟลเดอร์ static ถ้ายังไม่มี (เพื่อเก็บไฟล์เสียง)
+if not os.path.exists('static'):
+    os.makedirs('static')
+
+# --- ฟังก์ชันสร้างเสียงเรียกคิว (Server-Side) ---
+def generate_audio_file(text, code):
+    try:
+        # สร้างไฟล์แยกตามรหัสโรงพยาบาล (ทับไฟล์เดิมของตัวเอง)
+        filename = f"announce_{code}.mp3"
+        filepath = os.path.join("static", filename)
+        
+        # สร้างเสียงภาษาไทย
+        tts = gTTS(text=text, lang='th')
+        tts.save(filepath)
+        return filename
+    except Exception as e:
+        print(f"TTS Error: {e}")
+        return None
+
+# --- จัดการข้อมูลโรงพยาบาล ---
 def load_hospitals():
     if not os.path.exists(HOSPITALS_FILE): return {}
     try:
@@ -23,6 +45,7 @@ def save_hospitals(data):
     with open(HOSPITALS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+# --- จัดการข้อมูลคิว ---
 def load_all_data():
     if not os.path.exists(DATA_FILE): return {}
     try:
@@ -38,14 +61,14 @@ def get_hospital_data(all_data, code):
     today = datetime.date.today().strftime("%Y-%m-%d")
     hospitals = load_hospitals()
     default_name = "โรงพยาบาลส่งเสริมสุขภาพตำบล (แก้ไขได้)"
-    if code in hospitals: default_name = hospitals[code]['name']
+    if code in hospitals:
+        default_name = hospitals[code]['name']
     
     if code not in all_data:
         all_data[code] = {
             "date": today, "current_queue": 0, "last_queue": 0, "queues": [],
             "settings": { "hospital_name": default_name, "ticket_title": "บัตรคิวตรวจโรคทั่วไป", "ticket_footer": "ขอบคุณที่ใช้บริการ", "show_logo": True }
         }
-    
     if all_data[code].get("date") != today:
         all_data[code]["date"] = today
         all_data[code]["current_queue"] = 0
@@ -53,6 +76,7 @@ def get_hospital_data(all_data, code):
         all_data[code]["queues"] = []
     return all_data
 
+# --- Routes ---
 @app.route('/')
 def login(): return render_template('login.html')
 
@@ -80,34 +104,23 @@ def short_link(code):
     if code in hospitals and hospitals[code].get('active', True): return render_template('kiosk.html', code=code)
     return redirect(url_for('login'))
 
-# 🟢 แก้ไขส่วนนี้: ส่งตัวแปร code ไปที่หน้าเว็บด้วย
 @app.route('/check_queue/<code>')
 def check_queue(code):
     my_q = request.args.get('q', type=int)
     all_data = load_all_data()
     if code not in all_data: all_data = get_hospital_data(all_data, code)
-    
     data = all_data[code]
     current_q = data['current_queue']
     status = "waiting"
     wait_count = 0
-    
     if my_q == current_q: status = "called"
     elif my_q < current_q: status = "passed"
     else:
         waiting_list = [q for q in data['queues'] if q['status'] == 'waiting' and q['number'] < my_q]
         wait_count = len(waiting_list)
-    
-    return render_template('ticket_info.html', 
-                           my_queue=f"{my_q:03d}", 
-                           current_queue=f"{current_q:03d}",
-                           wait_count=wait_count,
-                           status=status,
-                           date=datetime.date.today().strftime("%d/%m/%Y"),
-                           hospital_name=data['settings']['hospital_name'],
-                           code=code) # <-- เพิ่มบรรทัดนี้สำคัญมาก
+    return render_template('ticket_info.html', my_queue=f"{my_q:03d}", current_queue=f"{current_q:03d}", wait_count=wait_count, status=status, date=datetime.date.today().strftime("%d/%m/%Y"), hospital_name=data['settings']['hospital_name'], code=code)
 
-# --- Admin Routes ---
+# --- Admin Routes (คงเดิม) ---
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
@@ -156,6 +169,7 @@ def admin_logout():
     return redirect(url_for('admin_login'))
 
 # --- Socket Events ---
+
 @socketio.on('join')
 def on_join(data):
     code = data['code']
@@ -198,7 +212,18 @@ def handle_next(data_in):
             next_q['status'] = 'called'
             data['current_queue'] = next_q['number']
             save_all_data(all_data)
-            emit('update_display', {'number': next_q['number'], 'play_sound': True}, room=code)
+            
+            # 🟢 สร้างไฟล์เสียง MP3
+            text_to_speak = f"เชิญคิวที่ {next_q['number']} ค่ะ"
+            audio_file = generate_audio_file(text_to_speak, code)
+            
+            # ส่ง URL ไฟล์เสียงไปให้ทีวี
+            emit('update_display', {
+                'number': next_q['number'], 
+                'play_sound': True,
+                'sound_url': f"/static/{audio_file}" # ส่งลิงก์เสียงไป
+            }, room=code)
+            
             emit('update_staff', {'waiting_count': len(waiting)-1}, room=code)
 
 @socketio.on('repeat_call')
@@ -206,7 +231,15 @@ def handle_repeat(data_in):
     code = data_in['code']
     all_data = load_all_data()
     if code in all_data and all_data[code]['current_queue'] > 0:
-        emit('update_display', {'number': all_data[code]['current_queue'], 'play_sound': True}, room=code)
+        # 🟢 สร้างไฟล์เสียง MP3 ซ้ำ
+        text_to_speak = f"เชิญคิวที่ {all_data[code]['current_queue']} ค่ะ"
+        audio_file = generate_audio_file(text_to_speak, code)
+        
+        emit('update_display', {
+            'number': all_data[code]['current_queue'], 
+            'play_sound': True,
+            'sound_url': f"/static/{audio_file}"
+        }, room=code)
 
 @socketio.on('save_settings')
 def handle_save(data_in):
