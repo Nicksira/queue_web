@@ -152,10 +152,17 @@
             document.getElementById('p-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('p-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (แบบง่ายที่สุด สแกนติดง่าย)
+            // B. สร้าง QR Code (เทคนิคใหม่: แอบสร้าง)
             const qrBox = document.getElementById("qrcode-box");
             qrBox.innerHTML = ""; // ล้างรูปเก่า
             
+            // --- เทคนิคสำคัญ: ทำให้ส่วนปริ้นโผล่มาแวบหนึ่ง (นอกจอ) เพื่อให้ QR สร้างได้ ---
+            const printSection = document.getElementById('print-section');
+            printSection.style.display = 'block'; // โชว์
+            printSection.style.position = 'absolute'; // ให้อยู่นอก flow ปกติ
+            printSection.style.left = '-9999px'; // ย้ายไปไกลๆ นอกจอ
+            // -------------------------------------------------------------------
+
             try {
                 // ข้อมูลใน QR: เลขคิว + เวลารับ
                 const qrText = `คิว: ${numberPadded}\nรอ: ${queuesAhead}\nเวลา: ${timeStr}`;
@@ -170,6 +177,7 @@
                 });
             } catch (e) {
                 console.error(e);
+                qrBox.innerText = "QR Error";
             }
 
             // C. แจ้งเตือนหน้าจอ
@@ -181,8 +189,13 @@
                 showConfirmButton: false
             });
 
-            // D. สั่งปริ้น (หน่วงเวลา 1 วินาที ให้ QR สร้างเสร็จแน่นอน)
+            // D. สั่งปริ้น (หน่วงเวลาให้ QR สร้างเสร็จ)
             setTimeout(() => {
+                // --- ซ่อนส่วนปริ้นกลับไปเหมือนเดิมก่อนสั่งพิมพ์ ---
+                printSection.style.display = 'none'; 
+                printSection.style.position = '';
+                printSection.style.left = '';
+                // --------------------------------------------
                 window.print();
             }, 1000);
         });
