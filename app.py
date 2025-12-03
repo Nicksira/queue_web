@@ -10,7 +10,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATA_FILE = "queue_data.json"
 
-# รายชื่อโรงพยาบาลตั้งต้น
+# รายชื่อโรงพยาบาล
 DEFAULT_HOSPITALS = {
     "02500": "โรงพยาบาลส่งเสริมสุขภาพตำบลเมืองไผ่",
     "02501": "โรงพยาบาลส่งเสริมสุขภาพตำบลนิคมสร้างตนเองคลองน้ำใส",
@@ -43,68 +43,53 @@ def save_all_data(data):
 
 def get_hospital_data(all_data, code):
     today = datetime.date.today().strftime("%Y-%m-%d")
-    
     if code not in all_data:
         default_name = DEFAULT_HOSPITALS.get(code, "โรงพยาบาลส่งเสริมสุขภาพตำบล (แก้ไขได้)")
         all_data[code] = {
-            "date": today,
-            "current_queue": 0,
-            "last_queue": 0,
-            "queues": [],
-            "settings": {
-                "hospital_name": default_name,
-                "ticket_title": "บัตรคิวตรวจโรคทั่วไป",
-                "ticket_footer": "ขอบคุณที่ใช้บริการ",
-                "show_logo": True
-            }
+            "date": today, "current_queue": 0, "last_queue": 0, "queues": [],
+            "settings": { "hospital_name": default_name, "ticket_title": "บัตรคิวตรวจโรคทั่วไป", "ticket_footer": "ขอบคุณที่ใช้บริการ", "show_logo": True }
         }
-    
     if all_data[code].get("date") != today:
         all_data[code]["date"] = today
         all_data[code]["current_queue"] = 0
         all_data[code]["last_queue"] = 0
         all_data[code]["queues"] = []
-    
     return all_data
 
-# --- Routes ---
-
 @app.route('/')
-def login():
-    return render_template('login.html')
+def login(): return render_template('login.html')
 
 @app.route('/login', methods=['POST'])
 def do_login():
     code = request.form.get('code')
-    if code:
-        # ไปหน้า Staff ของรหัสนั้น
-        return redirect(url_for('staff_control', code=code))
+    if code: return redirect(url_for('staff_control', code=code))
     return redirect(url_for('login'))
 
 @app.route('/kiosk/<code>')
-def kiosk(code):
-    return render_template('kiosk.html', code=code)
+def kiosk(code): return render_template('kiosk.html', code=code)
 
 @app.route('/tv/<code>')
-def tv_display(code):
-    return render_template('tv.html', code=code)
+def tv_display(code): return render_template('tv.html', code=code)
 
 @app.route('/staff/<code>')
-def staff_control(code):
-    return render_template('staff.html', code=code)
+def staff_control(code): return render_template('staff.html', code=code)
 
+# ลิงก์สั้น (เช่น /02506)
+@app.route('/<code>')
+def short_link(code): return render_template('kiosk.html', code=code)
+
+# 🟢 หน้าเว็บสำหรับสแกน QR Code
 @app.route('/check_queue/<code>')
 def check_queue(code):
     my_q = request.args.get('q', type=int)
     all_data = load_all_data()
-    if code not in all_data: 
-        all_data = get_hospital_data(all_data, code)
-    
+    if code not in all_data: all_data = get_hospital_data(all_data, code)
     data = all_data[code]
-    current_q = data['current_queue']
     
+    current_q = data['current_queue']
     status = "waiting"
     wait_count = 0
+    
     if my_q == current_q: status = "called"
     elif my_q < current_q: status = "passed"
     else:
@@ -112,31 +97,19 @@ def check_queue(code):
         wait_count = len(waiting_list)
     
     return render_template('ticket_info.html', 
-                           my_queue=f"{my_q:03d}", 
-                           current_queue=f"{current_q:03d}",
-                           wait_count=wait_count,
-                           status=status,
+                           my_queue=f"{my_q:03d}", current_queue=f"{current_q:03d}",
+                           wait_count=wait_count, status=status,
                            date=datetime.date.today().strftime("%d/%m/%Y"),
                            hospital_name=data['settings']['hospital_name'])
-
-# 🟢 เพิ่ม Route นี้: เพื่อให้พิมพ์แค่ /02506 แล้วเข้าหน้าบัตรคิวได้เลย
-@app.route('/<code>')
-def short_link(code):
-    return render_template('kiosk.html', code=code)
-
-# --- Socket Events ---
 
 @socketio.on('join')
 def on_join(data):
     code = data['code']
     join_room(code)
-    
     all_data = load_all_data()
     all_data = get_hospital_data(all_data, code)
     save_all_data(all_data)
-    
     hospital_data = all_data[code]
-    
     emit('update_settings', hospital_data['settings'], room=code)
     emit('update_display', {'number': hospital_data['current_queue'], 'play_sound': False}, room=code)
     emit('update_staff', {'waiting_count': len([q for q in hospital_data['queues'] if q['status'] == 'waiting'])}, room=code)
@@ -159,10 +132,8 @@ def handle_ticket(data_in):
     queues_ahead = max(0, len(waiting_list) - 1)
     
     emit('ticket_printed', {
-        'number': new_num, 
-        'settings': data['settings'],
-        'queues_ahead': queues_ahead,
-        'code': code
+        'number': new_num, 'settings': data['settings'],
+        'queues_ahead': queues_ahead, 'code': code
     }, room=code)
     
     emit('update_staff', {'waiting_count': len(waiting_list)}, room=code)
