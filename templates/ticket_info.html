@@ -3,80 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายละเอียดคิว</title>
+    <title>สถานะคิวของคุณ</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Prompt', sans-serif;
             background: linear-gradient(135deg, #00b09b, #96c93d);
-            margin: 0;
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            margin: 0;
             color: #333;
         }
         .card {
             background: white;
             width: 85%;
             max-width: 400px;
-            padding: 40px 20px;
-            border-radius: 20px;
+            padding: 30px;
+            border-radius: 25px;
             text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        .logo { width: 80px; margin-bottom: 20px; }
-        h1 { margin: 0; font-size: 1.2rem; color: #555; }
+        .logo { width: 80px; margin-bottom: 15px; }
+        .hospital-name { font-size: 1.1rem; color: #555; margin-bottom: 20px; font-weight: 600; }
+        .queue-box {
+            background: #f0f2f5;
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .queue-label { font-size: 1rem; color: #777; }
         .queue-number {
             font-size: 5rem;
             font-weight: bold;
             color: #00b09b;
-            margin: 10px 0;
             line-height: 1;
+            margin: 10px 0;
         }
-        .status-box {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
         }
-        .status-item {
+        .status-waiting { background: #ffc107; color: #333; }
+        .status-called { background: #28a745; }
+        .status-passed { background: #dc3545; }
+        
+        .info-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 10px;
             font-size: 1rem;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 5px;
         }
-        .label { color: #888; }
-        .value { font-weight: 600; }
-        .footer { margin-top: 20px; font-size: 0.8rem; color: #aaa; }
+        .refresh-btn {
+            background: #00b09b;
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,176,155,0.3);
+        }
     </style>
 </head>
 <body>
     <div class="card">
         <img src="/static/logo.png" class="logo" onerror="this.style.display='none'">
-        <h1>โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก</h1>
+        <div class="hospital-name">โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก</div>
         
-        <div style="margin-top: 20px; font-size: 1.1rem;">หมายเลขคิวของท่าน</div>
-        <div class="queue-number">{{ no }}</div>
-        
-        <div class="status-box">
-            <div class="status-item">
-                <span class="label">สถานะ:</span>
-                <span class="value text-warning">รอเรียก</span>
-            </div>
-            <div class="status-item">
-                <span class="label">คิวที่รออยู่:</span>
-                <span class="value" style="color: red;">{{ wait }} คิว</span>
-            </div>
-            <div class="status-item">
-                <span class="label">เวลารับบัตร:</span>
-                <span class="value">{{ time }}</span>
-            </div>
+        <div class="queue-box">
+            <div class="queue-label">หมายเลขคิวของคุณ</div>
+            <div class="queue-number">{{ my_queue }}</div>
+            
+            {% if status == 'called' %}
+                <div class="status-badge status-called">ถึงคิวของท่านแล้ว</div>
+            {% elif status == 'passed' %}
+                <div class="status-badge status-passed">เลยคิวแล้ว</div>
+            {% else %}
+                <div class="status-badge status-waiting">รอเรียก</div>
+                <div style="font-size: 3rem; font-weight: bold; color: #e74c3c;">{{ wait_count }}</div>
+                <div style="color: #777;">คิวที่ต้องรอ</div>
+            {% endif %}
         </div>
 
-        <div class="footer">
-            กรุณาเฝ้าระวังเสียงเรียกคิว<br>ขอบคุณที่ใช้บริการ
+        <div class="info-row">
+            <span>คิวปัจจุบัน:</span>
+            <strong>{{ current_queue }}</strong>
         </div>
+        <div class="info-row">
+            <span>วันที่:</span>
+            <span>{{ date }}</span>
+        </div>
+
+        <button class="refresh-btn" onclick="location.reload()">🔄 อัปเดตสถานะล่าสุด</button>
     </div>
 </body>
 </html>
