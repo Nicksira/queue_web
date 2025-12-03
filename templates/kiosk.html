@@ -1,25 +1,157 @@
-<script>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>รับบัตรคิว</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    
+    <style>
+        /* --- สไตล์หน้าจอปกติ --- */
+        body { 
+            font-family: 'Prompt', sans-serif; 
+            background: #e3f2fd; 
+            height: 100vh; 
+            margin: 0;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        
+        .kiosk-card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 30px; 
+            text-align: center; 
+            width: 90%; 
+            max-width: 500px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+        }
+        
+        .header-main { 
+            font-weight: 600; 
+            color: #004d40; 
+            margin-bottom: 20px; 
+            font-size: 1.8rem; 
+            padding: 0 20px; 
+        }
+        
+        .btn-ticket { 
+            background: linear-gradient(45deg, #00b09b, #96c93d); 
+            color: white; 
+            padding: 20px; 
+            font-size: 2rem; 
+            border-radius: 50px; 
+            width: 100%; 
+            border: none; 
+            font-weight: bold; 
+            box-shadow: 0 5px 15px rgba(0,176,155,0.4); 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .btn-ticket:active { transform: scale(0.95); }
+
+        /* --- ส่วนที่จะปริ้น (ซ่อนไว้แบบไม่ใช้ display:none) --- */
+        #printable-area {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            width: 80mm; /* ขนาดกระดาษใบเสร็จ */
+            background: white;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            color: black;
+        }
+
+        /* --- สไตล์ตอนสั่งปริ้น --- */
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; display: block !important; }
+            
+            #printable-area {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* จัดหน้าตาในกระดาษ */
+            .p-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
+            .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; line-height: 1.2; }
+            .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
+            
+            #qrcode-container { 
+                display: flex; justify-content: center; margin: 10px auto; 
+                width: 100px; height: 100px;
+            }
+            
+            .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
+            .p-wait { font-size: 14px; margin-bottom: 5px; font-weight: bold; }
+            .p-time { font-size: 12px; margin-bottom: 15px; }
+            .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; white-space: pre-wrap; }
+            
+            @page { margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1 class="header-main" id="live-hospital-name">...</h1>
+    
+    <div class="kiosk-card">
+        <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
+        <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
+        <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
+    </div>
+
+    <div id="printable-area">
+        <img src="/static/logo.png" class="p-logo" id="print-logo">
+        <div class="p-header" id="print-hospital">...</div>
+        <div class="p-title" id="print-title">...</div>
+        
+        <div id="qrcode-container"></div>
+        
+        <div class="p-number" id="print-num">A-000</div>
+        <div class="p-wait" id="print-wait">...</div>
+        <div class="p-time" id="print-time">Time: --:--</div>
+        <div class="p-footer" id="print-footer">...</div>
+    </div>
+
+    <script>
         const socket = io();
-        // ดึงรหัสจาก URL (เช่น /kiosk/9999 -> code = 9999)
+        
+        // 🟢 ดึงรหัสสถานพยาบาลจาก URL (เช่น /kiosk/1001)
         const pathParts = window.location.pathname.split('/');
         const hospCode = pathParts[pathParts.length - 1];
 
-        // 1. เข้าห้องตามรหัส
+        // 1. เชื่อมต่อและเข้าห้องตามรหัส
         socket.on('connect', () => {
             console.log("Connected to room:", hospCode);
             socket.emit('join', { code: hospCode });
         });
 
+        // 2. อัปเดตการตั้งค่า (ชื่อ รพ.)
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
+        // 3. ฟังก์ชันกดปุ่ม (ส่งรหัสไปด้วย)
         function getTicket() {
-            // ส่งรหัสไปด้วยตอนกด
             socket.emit('get_ticket', { code: hospCode });
         }
 
+        // 4. รับข้อมูลบัตรคิว + สร้าง QR + ปริ้น
         socket.on('ticket_printed', (data) => {
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
@@ -30,7 +162,7 @@
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // ใส่ข้อมูลลงกระดาษ
+            // A. ใส่ข้อมูลลงกระดาษ
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -39,22 +171,26 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // สร้าง QR Code (ลิงก์ไปหน้า check_queue ของรหัสนี้)
+            // B. สร้าง QR Code (ลิงก์ไปหน้าเช็คสถานะ)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = "";
+                qrContainer.innerHTML = ""; // ล้างรูปเก่า
+                
+                // สร้าง URL สำหรับเช็คสถานะคิว (ใส่ code และเลขคิว)
                 const currentUrl = window.location.origin;
-                // ลิงก์ต้องมี code ด้วย
                 const qrLink = `${currentUrl}/check_queue/${hospCode}?q=${data.number}`;
                 
                 new QRCode(qrContainer, {
                     text: qrLink,
-                    width: 100, height: 100,
-                    colorDark : "#000000", colorLight : "#ffffff",
+                    width: 100,
+                    height: 100,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.M
                 });
             }
 
+            // C. แสดง Popup
             Swal.fire({
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
@@ -63,7 +199,10 @@
                 showConfirmButton: false
             });
 
-            setTimeout(() => { window.print(); }, 500);
+            // D. สั่งปริ้น (หน่วงเวลาเล็กน้อย)
+            setTimeout(() => {
+                window.print();
+            }, 500);
         });
     </script>
 </body>
