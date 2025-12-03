@@ -2,43 +2,145 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>สถานะคิว</title>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
     <style>
-        body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #00b09b, #96c93d); margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center; color: #333; }
-        .card { background: white; width: 85%; max-width: 400px; padding: 30px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .logo { width: 80px; margin-bottom: 15px; }
-        .hospital-name { font-size: 1.1rem; color: #555; margin-bottom: 20px; font-weight: 600; }
-        .queue-box { background: #f0f2f5; padding: 20px; border-radius: 15px; margin: 20px 0; }
-        .queue-label { font-size: 1rem; color: #777; }
-        .queue-number { font-size: 5rem; font-weight: bold; color: #00b09b; line-height: 1; margin: 10px 0; }
-        
-        .status-badge { display: inline-block; padding: 8px 20px; border-radius: 50px; color: white; font-weight: bold; font-size: 1.2rem; margin-bottom: 15px; width: 100%; }
-        .status-waiting { background: #ffc107; color: #333; }
-        .status-called { background: #28a745; animation: blink 1s infinite; }
-        .status-passed { background: #dc3545; }
-        
-        .wait-info { font-size: 1.5rem; color: #e74c3c; font-weight: bold; }
-        .btn-notify { 
-            background: #007bff; color: white; border: none; padding: 15px; width: 100%; 
-            border-radius: 50px; margin-top: 10px; cursor: pointer; 
-            font-size: 1.1rem; font-weight: bold;
-            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
-            animation: pulse 2s infinite;
+        /* ตั้งค่าพื้นฐานให้ไม่ล้น */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body { 
+            font-family: 'Prompt', sans-serif; 
+            background: linear-gradient(135deg, #00b09b, #96c93d); 
+            margin: 0; 
+            min-height: 100vh; /* ใช้ min-height เผื่อเนื้อหายาว */
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            color: #333;
+            padding: 20px; /* เพิ่มขอบเขตไม่ให้ชิดจอเกินไป */
         }
         
-        .warning-text { font-size: 0.8rem; color: #888; margin-top: 15px; }
+        .card { 
+            background: white; 
+            width: 100%; 
+            max-width: 420px; /* จำกัดความกว้างสูงสุด */
+            padding: 30px 25px; 
+            border-radius: 25px; 
+            text-align: center; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            overflow: hidden; /* ป้องกันเนื้อหาล้น card */
+        }
+        
+        .logo { 
+            width: 80px; 
+            height: auto; 
+            margin-bottom: 15px; 
+        }
+        
+        .hospital-name { 
+            font-size: 1.2rem; 
+            color: #444; 
+            margin-bottom: 25px; 
+            font-weight: 600;
+            line-height: 1.4;
+            word-wrap: break-word; /* ตัดคำถ้ายาวเกิน */
+        }
+        
+        .queue-box { 
+            background: #f1f3f5; 
+            padding: 25px 15px; 
+            border-radius: 20px; 
+            margin: 25px 0; 
+        }
+        
+        .queue-label { 
+            font-size: 1.1rem; 
+            color: #666; 
+            margin-bottom: 5px;
+        }
+        
+        /* 🟢 ตัวเลขคิวแบบ Responsive ไม่ล้นจอ */
+        .queue-number { 
+            /* ขนาดต่ำสุด 4rem, ปกติ 18% ของจอ, สูงสุด 6.5rem */
+            font-size: clamp(4rem, 18vw, 6.5rem); 
+            font-weight: 700; 
+            color: #00b09b; 
+            line-height: 1.1; 
+            margin: 10px 0;
+            letter-spacing: -2px;
+        }
+        
+        .status-badge { 
+            display: inline-block; 
+            padding: 10px 25px; 
+            border-radius: 50px; 
+            color: white; 
+            font-weight: bold; 
+            font-size: 1.3rem; 
+            margin-bottom: 15px; 
+            width: 100%; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .status-waiting { background: #ffc107; color: #444; }
+        .status-called { background: #28a745; animation: blink 0.8s infinite alternate; box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4); }
+        .status-passed { background: #dc3545; }
+        
+        .wait-info { 
+            font-size: 1.4rem; 
+            color: #e74c3c; 
+            font-weight: bold; 
+            margin-top: 10px;
+        }
+        .wait-info span { font-size: 2rem; }
 
-        @keyframes blink { 50% { opacity: 0.5; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .current-q-info {
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 20px; 
+            font-size: 1.1rem; 
+            color: #555;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        /* ปุ่มกดรอคิว */
+        .btn-notify { 
+            background: linear-gradient(45deg, #007bff, #0056b3); 
+            color: white; 
+            border: none; 
+            padding: 18px; 
+            width: 100%; 
+            border-radius: 50px; 
+            margin-top: 10px; 
+            cursor: pointer; 
+            font-size: 1.2rem; 
+            font-weight: bold;
+            box-shadow: 0 8px 20px rgba(0,123,255,0.3);
+            animation: pulse 2s infinite;
+            transition: all 0.3s ease;
+        }
+        .btn-notify:active { transform: scale(0.98); }
+        
+        .warning-text { 
+            font-size: 0.9rem; 
+            color: #777; 
+            margin-top: 15px; 
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.6; } }
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 8px 20px rgba(0,123,255,0.3); } 50% { transform: scale(1.03); box-shadow: 0 15px 30px rgba(0,123,255,0.5); } 100% { transform: scale(1); box-shadow: 0 8px 20px rgba(0,123,255,0.3); } }
     </style>
 </head>
 <body>
     <div class="card">
-        <img src="/static/logo.png" class="logo" onerror="this.style.display='none'">
+        <img src="/static/logo.png" class="logo" alt="Logo" onerror="this.style.display='none'">
         <div class="hospital-name">{{ hospital_name }}</div>
         
         <div class="queue-box">
@@ -47,8 +149,8 @@
             
             <div id="status-area">
                 {% if status == 'called' %}
-                    <div class="status-badge status-called">🔔 ถึงคิวของท่านแล้ว!</div>
-                    <p>กรุณาไปที่ห้องตรวจทันที</p>
+                    <div class="status-badge status-called">🔔 ถึงคิวแล้ว!</div>
+                    <p style="font-size: 1.2rem;">เชิญที่ห้องตรวจทันทีค่ะ</p>
                 {% elif status == 'passed' %}
                     <div class="status-badge status-passed">เลยคิวแล้ว</div>
                     <p>กรุณาติดต่อเจ้าหน้าที่</p>
@@ -59,66 +161,76 @@
             </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <span>คิวปัจจุบัน:</span>
-            <strong id="current-q">{{ current_queue }}</strong>
+        <div class="current-q-info">
+            <span>คิวปัจจุบันที่เรียก:</span>
+            <strong id="current-q" style="font-size: 1.4rem;">{{ current_queue }}</strong>
         </div>
         
         <button id="btn-enable-notify" class="btn-notify" onclick="activateQueueMode()">
-            🔔 กดที่นี่เพื่อรอเรียกคิว
+            👉 แตะที่นี่เพื่อรอเรียกคิว
         </button>
         
-        <p class="warning-text" id="wake-lock-status">⚠️ กรุณาเปิดหน้านี้ค้างไว้ (ห้ามปิดจอ)</p>
+        <div id="wake-lock-status" style="display:none;" class="warning-text">
+            ✅ <strong>เปิดโหมดรอคิวแล้ว</strong><br>หน้าจอจะไม่ดับ กรุณาเปิดหน้านี้ทิ้งไว้
+        </div>
     </div>
 
-    <audio id="alert-sound" src="/static/ding.mp3"></audio>
+    <audio id="alert-sound" src="/static/ding.mp3" preload="auto"></audio>
 
     <script>
         const socket = io();
         const myQueue = parseInt("{{ my_queue }}");
         const hospCode = "{{ code }}"; 
         let wakeLock = null;
+        const btnNotify = document.getElementById('btn-enable-notify');
+        const statusText = document.getElementById('wake-lock-status');
 
-        // ฟังก์ชันเปิดโหมดรอคิว (ล็อกหน้าจอไม่ให้ดับ + เปิดเสียง)
+        // ฟังก์ชันเปิดโหมดรอคิว (ล็อกหน้าจอ + เตรียมเสียง)
         async function activateQueueMode() {
             // 1. ขอ Permission แจ้งเตือน
             if (Notification.permission !== "granted") {
-                await Notification.requestPermission();
+                Notification.requestPermission();
             }
 
-            // 2. ปลดล็อกเสียง (เล่นแล้วหยุดทันที เพื่อให้ Browser ยอมให้เล่นเสียงต่อได้)
+            // 2. เตรียมเสียง (เล่นแล้วหยุดทันที เพื่อปลดล็อก Browser)
             const audio = document.getElementById('alert-sound');
-            audio.play().catch(() => {});
-            audio.pause();
-            audio.currentTime = 0;
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+            }).catch(error => console.log("Audio autoplay prevented initially:", error));
 
             // 3. ล็อกหน้าจอไม่ให้ดับ (Wake Lock API)
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById('wake-lock-status').innerText = "✅ กำลังทำงาน: หน้าจอจะไม่ดับจนกว่าจะถึงคิว";
-                    document.getElementById('wake-lock-status').style.color = "green";
-                    document.getElementById('btn-enable-notify').style.display = 'none';
-                    alert("เปิดโหมดรอคิวแล้ว! กรุณาเปิดหน้านี้ทิ้งไว้");
+                    btnNotify.style.display = 'none';
+                    statusText.style.display = 'inline-block';
+                    // alert("เปิดโหมดรอคิวแล้ว! กรุณาเปิดหน้านี้ทิ้งไว้");
                 } else {
-                    alert("เครื่องนี้ไม่รองรับการล็อกหน้าจอ กรุณาแตะหน้าจอเรื่อยๆ");
+                    alert("เครื่องนี้ไม่รองรับการล็อกหน้าจออัตโนมัติ กรุณาแตะหน้าจอเป็นระยะ");
+                    btnNotify.style.display = 'none';
+                    statusText.innerText = "⚠️ กรุณาเปิดหน้านี้ทิ้งไว้ และแตะหน้าจอเป็นระยะ";
+                    statusText.style.display = 'inline-block';
                 }
             } catch (err) {
                 console.error(`${err.name}, ${err.message}`);
+                btnNotify.innerText = "❌ ไม่สามารถล็อกหน้าจอได้ (ลองอีกครั้ง)";
             }
         }
 
-        // Re-acquire lock if screen comes back
+        // ถ้าหน้าจอดับไปแล้วกลับมา ให้ล็อกใหม่
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible') {
-                activateQueueMode();
+                try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
             }
         });
 
+        // เชื่อมต่อ Socket
         socket.on('connect', () => {
             socket.emit('join', { code: hospCode });
         });
 
+        // อัปเดตสถานะ Real-time
         socket.on('update_display', (data) => {
             const currentQ = data.number;
             document.getElementById('current-q').innerText = String(currentQ).padStart(3, '0');
@@ -127,12 +239,12 @@
             const statusArea = document.getElementById('status-area');
 
             if (currentQ === myQueue) {
-                // ถึงคิวแล้ว!
+                // 🔥 ถึงคิวแล้ว!
                 statusArea.innerHTML = `
-                    <div class="status-badge status-called">🔔 ถึงคิวของท่านแล้ว!</div>
-                    <p>กรุณาไปที่ห้องตรวจทันที</p>
+                    <div class="status-badge status-called">🔔 ถึงคิวแล้ว!</div>
+                    <p style="font-size: 1.2rem; font-weight: bold;">เชิญที่ห้องตรวจทันทีค่ะ</p>
                 `;
-                notifyUser(); 
+                notifyUser(); // เรียกฟังก์ชันแจ้งเตือน
                 
             } else if (currentQ > myQueue) {
                 statusArea.innerHTML = '<div class="status-badge status-passed">เลยคิวแล้ว</div><p>กรุณาติดต่อเจ้าหน้าที่</p>';
@@ -145,16 +257,20 @@
             }
         });
 
+        // ฟังก์ชันแจ้งเตือน (เสียง + สั่น + Notification)
         function notifyUser() {
-            // สั่น
-            if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
+            // 1. สั่น (Android)
+            if (navigator.vibrate) navigator.vibrate([500, 300, 500, 300, 1000]);
 
-            // เสียง
+            // 2. เสียง 🔊 (จะดังถ้าวางไฟล์ ding.mp3 ถูกต้อง)
             const audio = document.getElementById('alert-sound');
-            if(audio) audio.play().catch(e => console.log("Audio blocked"));
+            if(audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => console.log("Audio play failed:", e));
+            }
 
-            // แจ้งเตือน
-            if (Notification.permission === "granted") {
+            // 3. แจ้งเตือนบนหน้าจอ
+            if (Notification.permission === "granted" && document.visibilityState === 'hidden') {
                 new Notification("🔔 ถึงคิวของท่านแล้ว!", {
                     body: `หมายเลขคิว ${myQueue} เชิญที่ห้องตรวจค่ะ`,
                     icon: '/static/logo.png'
