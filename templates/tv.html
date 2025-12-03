@@ -27,6 +27,7 @@
             align-items: center; 
             box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
             height: 15vh;
+            position: relative; /* เพื่อให้อ้างอิงตำแหน่งลูกได้ */
         }
         
         .header img { height: 80%; margin-right: 30px; }
@@ -34,6 +35,27 @@
         .header-text h1 { margin: 0; line-height: 1.2; }
         .hosp-name { font-size: 1.8vw; opacity: 0.9; font-weight: 400; }
         .dept-name { font-size: 2.5vw; font-weight: bold; }
+
+        /* 🟢 นาฬิกา Real-time มุมขวาบน */
+        .clock-container {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: right;
+        }
+        .clock-time {
+            font-size: 4vw;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+            line-height: 1;
+            font-family: 'Courier New', monospace; /* เพื่อให้ตัวเลขไม่ขยับไปมา */
+        }
+        .clock-date {
+            font-size: 1.2vw;
+            color: #ddd;
+        }
 
         /* ส่วนแสดงผลหลัก */
         .main { 
@@ -71,7 +93,7 @@
             position: fixed; inset: 0; 
             background: rgba(0,0,0,0.95); 
             display: flex; 
-            flex-direction: column;
+            flex-direction: column; 
             align-items: center; 
             justify-content: center; 
             z-index: 9999; 
@@ -100,6 +122,11 @@
             <div class="hosp-name" id="tv-hospital-name">...</div>
             <div class="dept-name">ห้องตรวจโรคทั่วไป</div>
         </div>
+        
+        <div class="clock-container">
+            <div class="clock-time" id="realtime-clock">--:--:--</div>
+            <div class="clock-date" id="realtime-date">...</div>
+        </div>
     </div>
 
     <div class="main">
@@ -111,13 +138,30 @@
     <script>
         const socket = io();
         
-        // 1. ดึงรหัสสถานพยาบาลจาก URL (เช่น /tv/1001 -> 1001)
         const pathParts = window.location.pathname.split('/');
         const hospCode = pathParts[pathParts.length - 1];
 
         let audioReady = false;
 
-        // ฟังก์ชันปลดล็อกเสียง (Browser Policy)
+        // ฟังก์ชันนาฬิกา Real-time
+        function updateClock() {
+            const now = new Date();
+            
+            // เวลา HH:MM:SS
+            const timeString = now.toLocaleTimeString('th-TH', { hour12: false });
+            document.getElementById('realtime-clock').innerText = timeString;
+            
+            // วันที่ แบบไทย
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const dateString = now.toLocaleDateString('th-TH', options);
+            document.getElementById('realtime-date').innerText = dateString;
+        }
+        
+        // อัปเดตทุก 1 วินาที
+        setInterval(updateClock, 1000);
+        updateClock(); // เรียกทันทีเมื่อโหลด
+
+        // ฟังก์ชันปลดล็อกเสียง
         document.getElementById('overlay').onclick = function() {
             this.style.opacity = '0';
             setTimeout(() => { this.style.display = 'none'; }, 500);
@@ -125,31 +169,28 @@
             speak("ระบบเรียกคิว พร้อมทำงานค่ะ");
         };
 
-        // 2. เชื่อมต่อและเข้าห้อง (Room)
+        // Socket Events
         socket.on('connect', () => {
             console.log("Connected to Hospital Code:", hospCode);
             socket.emit('join', { code: hospCode });
         });
 
-        // 3. อัปเดตการตั้งค่า (ชื่อ รพ., โลโก้)
         socket.on('update_settings', (settings) => {
             document.getElementById('tv-hospital-name').innerText = settings.hospital_name;
             document.getElementById('tv-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
 
-        // 4. อัปเดตหน้าจอเมื่อมีการเรียกคิว
         socket.on('update_display', (data) => {
             const numEl = document.getElementById('q-num');
             const statusEl = document.getElementById('status');
 
             if (data.number > 0) {
-                // จัดรูปแบบเลขให้เป็น 3 หลัก (001)
                 numEl.innerText = String(data.number).padStart(3, '0');
                 statusEl.innerText = "เชิญที่ห้องตรวจ";
                 statusEl.style.color = "#fff";
-                statusEl.style.background = "#28a745"; // สีเขียว
+                statusEl.style.background = "#28a745";
                 
-                // เอฟเฟกต์กระพริบ
+                // Blink Effect
                 numEl.style.color = "#fff";
                 setTimeout(() => numEl.style.color = "#00e676", 300);
                 setTimeout(() => numEl.style.color = "#fff", 600);
@@ -161,23 +202,17 @@
                 statusEl.style.background = "rgba(255,255,255,0.1)";
             }
 
-            // เล่นเสียงถ้าได้รับคำสั่ง
             if(data.play_sound && audioReady) {
                 speak("เชิญคิวที่ " + data.number + " ค่ะ");
             }
         });
 
-        // ฟังก์ชันพูด (ใช้ Web Speech API ในตัว Browser ไม่ต้องลงเพิ่ม)
         function speak(text) {
             if ('speechSynthesis' in window) {
-                // ยกเลิกเสียงเก่าที่พูดค้างอยู่
                 window.speechSynthesis.cancel();
-
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'th-TH'; // ภาษาไทย
-                utterance.rate = 0.9;     // ความเร็วปกติ
-                utterance.volume = 1.0;   // เสียงดังสุด
-                
+                utterance.lang = 'th-TH';
+                utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
             }
         }
