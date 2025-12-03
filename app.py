@@ -26,7 +26,11 @@ def load_data():
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
             if data.get("date") != today:
-                data = default_data
+                data["date"] = today
+                data["current_queue"] = 0
+                data["last_queue"] = 0
+                data["queues"] = []
+            if "settings" not in data: data["settings"] = default_data["settings"]
             return data
     except: return default_data
 
@@ -45,6 +49,7 @@ def staff_control(): return render_template('staff.html')
 def handle_connect():
     data = load_data()
     emit('update_settings', data['settings'])
+    emit('update_display', {'number': data['current_queue'], 'play_sound': False})
     emit('update_staff', {'waiting_count': len([q for q in data['queues'] if q['status'] == 'waiting'])})
 
 @socketio.on('get_ticket')
@@ -59,15 +64,18 @@ def handle_ticket():
     })
     save_data(data)
     
-    # คำนวณคิวที่รอ
+    # 🟢 คำนวณคิวรอ
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = max(0, len(waiting_list) - 1)
+    queues_ahead = len(waiting_list) - 1
+    if queues_ahead < 0: queues_ahead = 0
     
+    # ส่งข้อมูลครบชุด
     emit('ticket_printed', {
         'number': new_num, 
         'settings': data['settings'],
         'queues_ahead': queues_ahead
     })
+    
     emit('update_staff', {'waiting_count': len(waiting_list)}, broadcast=True)
 
 @socketio.on('call_next')
@@ -82,6 +90,19 @@ def handle_next():
         emit('update_display', {'number': next_q['number'], 'play_sound': True}, broadcast=True)
         emit('update_staff', {'waiting_count': len(waiting)-1}, broadcast=True)
 
+@socketio.on('repeat_call')
+def handle_repeat():
+    data = load_data()
+    if data['current_queue'] > 0:
+        emit('update_display', {'number': data['current_queue'], 'play_sound': True}, broadcast=True)
+
+@socketio.on('save_settings')
+def handle_save(settings):
+    data = load_data()
+    data['settings'] = settings
+    save_data(data)
+    emit('update_settings', settings, broadcast=True)
+
 @socketio.on('reset_system')
 def handle_reset():
     data = load_data()
@@ -91,4 +112,4 @@ def handle_reset():
     emit('update_staff', {'waiting_count': 0}, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5005)
+    socketio.run(app, host='0.0.0.0', port=5005, debug=True)
