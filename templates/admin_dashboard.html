@@ -40,16 +40,11 @@
 
         <div class="card shadow-sm">
             <div class="card-body">
-                <h5 class="card-title mb-3">📋 รายชื่อผู้ใช้งาน ({% print len(hospitals) %})</h5>
+                <h5 class="card-title">📋 รายชื่อผู้ใช้งาน</h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>รหัส</th>
-                                <th>ชื่อสถานพยาบาล</th>
-                                <th>สถานะ</th>
-                                <th>จัดการ</th>
-                            </tr>
+                        <thead>
+                            <tr><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th>จัดการ</th></tr>
                         </thead>
                         <tbody>
                             {% for code, data in hospitals.items() %}
@@ -57,20 +52,15 @@
                                 <td><span class="badge bg-secondary">{{ code }}</span></td>
                                 <td>{{ data.name }}</td>
                                 <td>
-                                    {% if data.active %}
-                                        <span class="status-on">ใช้งานได้</span>
-                                    {% else %}
-                                        <span class="status-off">ระงับ</span>
-                                    {% endif %}
+                                    {% if data.active %}<span class="status-on">ใช้งานได้</span>
+                                    {% else %}<span class="status-off">ระงับ</span>{% endif %}
                                 </td>
                                 <td>
-                                    {% if data.active %}
-                                        <a href="/admin/toggle/{{ code }}" class="btn btn-warning btn-sm">ระงับ</a>
-                                    {% else %}
-                                        <a href="/admin/toggle/{{ code }}" class="btn btn-success btn-sm">เปิดใช้</a>
-                                    {% endif %}
-                                    <a href="/admin/delete/{{ code }}" class="btn btn-danger btn-sm" onclick="return confirm('ยืนยันลบ {{ data.name }}?')">ลบ</a>
-                                    <a href="/kiosk/{{ code }}" target="_blank" class="btn btn-primary btn-sm">ดูหน้าเว็บ</a>
+                                    <a href="/admin/toggle/{{ code }}" class="btn btn-sm {{ 'btn-warning' if data.active else 'btn-success' }}">
+                                        {{ 'ระงับ' if data.active else 'เปิดใช้' }}
+                                    </a>
+                                    <a href="/admin/delete/{{ code }}" class="btn btn-danger btn-sm" onclick="return confirm('ลบจริงหรือไม่?')">ลบ</a>
+                                    <a href="/kiosk/{{ code }}" target="_blank" class="btn btn-primary btn-sm">ดูเว็บ</a>
                                 </td>
                             </tr>
                             {% endfor %}
