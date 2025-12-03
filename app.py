@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO, emit, join_room
 import json
 import os
@@ -10,9 +10,9 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATA_FILE = "queue_data.json"
 HOSPITALS_FILE = "hospitals.json"
-ADMIN_PASSWORD = "admin"  # 🔑 รหัสผ่านสำหรับ Super Admin (เปลี่ยนได้)
+ADMIN_PASSWORD = "admin"  # รหัสผ่าน Admin (เปลี่ยนได้)
 
-# --- Hospital Data Management ---
+# --- จัดการข้อมูลโรงพยาบาล (Admin) ---
 def load_hospitals():
     if not os.path.exists(HOSPITALS_FILE): return {}
     try:
@@ -24,7 +24,7 @@ def save_hospitals(data):
     with open(HOSPITALS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- Queue Data Management ---
+# --- จัดการข้อมูลคิว ---
 def load_all_data():
     if not os.path.exists(DATA_FILE): return {}
     try:
@@ -40,21 +40,31 @@ def get_hospital_data(all_data, code):
     today = datetime.date.today().strftime("%Y-%m-%d")
     hospitals = load_hospitals()
     
-    # ถ้ามีในทะเบียน ให้ใช้ชื่อนั้น
-    default_name = "โรงพยาบาลทั่วไป"
+    # ดึงชื่อจากไฟล์ hospitals.json
+    default_name = "โรงพยาบาลส่งเสริมสุขภาพตำบล (แก้ไขได้)"
     if code in hospitals:
         default_name = hospitals[code]['name']
     
     if code not in all_data:
         all_data[code] = {
-            "date": today, "current_queue": 0, "last_queue": 0, "queues": [],
-            "settings": { "hospital_name": default_name, "ticket_title": "บัตรคิวตรวจโรคทั่วไป", "ticket_footer": "ขอบคุณที่ใช้บริการ", "show_logo": True }
+            "date": today,
+            "current_queue": 0,
+            "last_queue": 0,
+            "queues": [],
+            "settings": {
+                "hospital_name": default_name,
+                "ticket_title": "บัตรคิวตรวจโรคทั่วไป",
+                "ticket_footer": "ขอบคุณที่ใช้บริการ",
+                "show_logo": True
+            }
         }
+    
     if all_data[code].get("date") != today:
         all_data[code]["date"] = today
         all_data[code]["current_queue"] = 0
         all_data[code]["last_queue"] = 0
         all_data[code]["queues"] = []
+    
     return all_data
 
 # --- Routes: General ---
@@ -68,13 +78,13 @@ def do_login():
     code = request.form.get('code')
     hospitals = load_hospitals()
     
-    # เช็คว่ามีรหัสนี้ไหม และเปิดใช้งานอยู่หรือไม่
     if code in hospitals:
         if hospitals[code].get('active', True):
             return redirect(url_for('staff_control', code=code))
         else:
-            return "<h1>⛔ รหัสนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ</h1><a href='/'>กลับหน้าแรก</a>"
+            return "<h1>⛔ รหัสนี้ถูกระงับการใช้งาน</h1><a href='/'>กลับหน้าแรก</a>"
     
+    # ถ้าไม่มีในระบบ ให้แจ้งเตือน (หรือจะยอมให้เข้าแบบ Anonymous ก็ได้ แต่ในที่นี้เน้นตามทะเบียน)
     return "<h1>❌ ไม่พบรหัสสถานพยาบาลนี้</h1><a href='/'>กลับหน้าแรก</a>"
 
 @app.route('/kiosk/<code>')
@@ -86,10 +96,11 @@ def tv_display(code): return render_template('tv.html', code=code)
 @app.route('/staff/<code>')
 def staff_control(code): return render_template('staff.html', code=code)
 
+# ลิงก์สั้น (เช่น /02506)
 @app.route('/<code>')
 def short_link(code): 
-    # ลิงก์สั้น เช็คสิทธิ์ด้วย
     hospitals = load_hospitals()
+    # ยอมให้เข้าเฉพาะที่มีในทะเบียนและ Active
     if code in hospitals and hospitals[code].get('active', True):
         return render_template('kiosk.html', code=code)
     return redirect(url_for('login'))
@@ -98,19 +109,31 @@ def short_link(code):
 def check_queue(code):
     my_q = request.args.get('q', type=int)
     all_data = load_all_data()
-    if code not in all_data: all_data = get_hospital_data(all_data, code)
+    
+    # ถ้าไม่มีข้อมูล ให้ดึง Default มาก่อน
+    if code not in all_data: 
+        all_data = get_hospital_data(all_data, code)
+        
     data = all_data[code]
     current_q = data['current_queue']
     status = "waiting"
     wait_count = 0
+    
     if my_q == current_q: status = "called"
     elif my_q < current_q: status = "passed"
     else:
         waiting_list = [q for q in data['queues'] if q['status'] == 'waiting' and q['number'] < my_q]
         wait_count = len(waiting_list)
-    return render_template('ticket_info.html', my_queue=f"{my_q:03d}", current_queue=f"{current_q:03d}", wait_count=wait_count, status=status, date=datetime.date.today().strftime("%d/%m/%Y"), hospital_name=data['settings']['hospital_name'])
+    
+    return render_template('ticket_info.html', 
+                           my_queue=f"{my_q:03d}", 
+                           current_queue=f"{current_q:03d}",
+                           wait_count=wait_count,
+                           status=status,
+                           date=datetime.date.today().strftime("%d/%m/%Y"),
+                           hospital_name=data['settings']['hospital_name'])
 
-# --- Routes: Super Admin ---
+# --- Routes: Super Admin (ส่วนที่ขาดไป) ---
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
@@ -162,22 +185,24 @@ def admin_logout():
     session.pop('admin_logged_in', None)
     return redirect(url_for('admin_login'))
 
-# --- Socket Events (เหมือนเดิม) ---
+# --- Socket Events ---
 
 @socketio.on('join')
 def on_join(data):
     code = data['code']
     hospitals = load_hospitals()
     
-    # ตรวจสอบสิทธิ์ก่อนให้เข้าห้อง
+    # เช็คสิทธิ์ก่อนเข้าห้อง
     if code not in hospitals or not hospitals[code].get('active', True):
-        return # ไม่ให้เข้าถ้าถูกแบน
+        return 
 
     join_room(code)
     all_data = load_all_data()
     all_data = get_hospital_data(all_data, code)
     save_all_data(all_data)
+    
     hospital_data = all_data[code]
+    
     emit('update_settings', hospital_data['settings'], room=code)
     emit('update_display', {'number': hospital_data['current_queue'], 'play_sound': False}, room=code)
     emit('update_staff', {'waiting_count': len([q for q in hospital_data['queues'] if q['status'] == 'waiting'])}, room=code)
@@ -188,14 +213,24 @@ def handle_ticket(data_in):
     all_data = load_all_data()
     all_data = get_hospital_data(all_data, code)
     data = all_data[code]
+    
     new_num = data['last_queue'] + 1
     data['last_queue'] = new_num
     current_time = datetime.datetime.now().strftime("%H:%M")
+    
     data['queues'].append({"number": new_num, "status": "waiting", "time": current_time})
     save_all_data(all_data)
+    
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
     queues_ahead = max(0, len(waiting_list) - 1)
-    emit('ticket_printed', {'number': new_num, 'settings': data['settings'], 'queues_ahead': queues_ahead, 'code': code}, room=code)
+    
+    emit('ticket_printed', {
+        'number': new_num, 
+        'settings': data['settings'],
+        'queues_ahead': queues_ahead,
+        'code': code
+    }, room=code)
+    
     emit('update_staff', {'waiting_count': len(waiting_list)}, room=code)
 
 @socketio.on('call_next')
