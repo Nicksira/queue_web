@@ -54,27 +54,36 @@
             cursor: pointer; 
         }
 
-        /* --- ส่วนใบเสร็จ (ปกติซ่อนไว้) --- */
+        /* --- ส่วนใบเสร็จ (แก้ไขวิธีการซ่อน) --- */
+        /* ซ่อนโดยการย้ายออกนอกจอ แทนการใช้ display: none เพื่อให้ QR Code สร้างได้ */
         #printable-area {
-            display: none;
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            visibility: hidden;
+            width: 80mm; /* กำหนดความกว้างที่แน่นอน */
         }
 
         /* --- สไตล์ตอนสั่งปริ้น --- */
         @media print {
             /* 1. ซ่อน UI หน้าจอทั้งหมด */
-            body > *:not(#printable-area) {
-                display: none !important;
+            body * {
+                visibility: hidden;
             }
             
-            /* 2. แสดงใบเสร็จ */
+            /* 2. แสดงและจัดตำแหน่งใบเสร็จ */
+            #printable-area, #printable-area * {
+                visibility: visible;
+            }
+
             #printable-area {
-                display: block !important;
-                width: 80mm; /* ขนาดกระดาษมาตรฐาน */
-                margin: 0 auto;
+                position: static; /* กลับมาเป็นปกติ */
+                margin: 0 auto; /* จัดกึ่งกลาง */
                 text-align: center;
                 font-family: 'Courier New', monospace;
                 color: black;
                 padding: 10px;
+                width: 80mm;
             }
             
             /* รีเซ็ต Margin ของหน้ากระดาษ */
@@ -92,12 +101,12 @@
             display: flex; 
             justify-content: center; 
             align-items: center;
-            margin: 15px auto; /* เพิ่มระยะห่าง */
-            min-height: 100px; /* กันพื้นที่ไว้ */
+            margin: 15px auto; 
+            min-height: 128px; /* จองพื้นที่ไว้ */
         }
-        #qrcode-box img { 
-            width: 100px !important; 
-            height: 100px !important; 
+        /* จัดกึ่งกลางรูป QR Code */
+        #qrcode-box img {
+            margin: 0 auto;
         }
         
         .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
@@ -175,18 +184,20 @@
             try {
                 const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\n${dateStr} ${timeStr}`;
                 
+                // สร้าง QR Code
                 new QRCode(qrBox, {
                     text: qrText,
-                    width: 100,
-                    height: 100,
+                    width: 128,
+                    height: 128,
                     colorDark : "#000000",
                     colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.L
+                    correctLevel : QRCode.CorrectLevel.M
                 });
                 console.log("QR Code generated successfully");
             } catch (error) {
                 console.error("Error generating QR Code:", error);
-                qrBox.innerHTML = "QR Error"; // แสดงข้อความถ้าวาดไม่ได้
+                // แสดงข้อความแจ้งเตือนถ้าสร้างไม่สำเร็จ
+                qrBox.innerHTML = "<p style='color:red; font-weight:bold;'>QR Error</p>"; 
             }
 
             // C. แสดง Popup บนหน้าจอ
@@ -194,14 +205,14 @@
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
                 icon: 'success',
-                timer: 2500,
+                timer: 2000,
                 showConfirmButton: false
             });
 
-            // D. สั่งปริ้น (สำคัญ: เพิ่มเวลาหน่วงเป็น 1500ms)
+            // D. สั่งปริ้น (หน่วงเวลาเล็กน้อยให้ QR code สร้างเสร็จ)
             setTimeout(() => {
                 window.print();
-            }, 1500); // รอ 1.5 วินาที ให้ QR วาดเสร็จชัวร์ๆ
+            }, 800);
         });
     </script>
 </body>
