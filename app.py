@@ -13,10 +13,7 @@ DATA_FILE = "queue_data.json"
 def load_data():
     today = datetime.date.today().strftime("%Y-%m-%d")
     default_data = {
-        "date": today,
-        "current_queue": 0,
-        "last_queue": 0,
-        "queues": [],
+        "date": today, "current_queue": 0, "last_queue": 0, "queues": [],
         "settings": {
             "hospital_name": "โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก",
             "ticket_title": "บัตรคิวตรวจโรคทั่วไป",
@@ -63,18 +60,16 @@ def handle_ticket():
     
     current_time = datetime.datetime.now().strftime("%H:%M")
     data['queues'].append({
-        "number": new_num,
-        "status": "waiting",
-        "time": current_time
+        "number": new_num, "status": "waiting", "time": current_time
     })
     save_data(data)
     
-    # คำนวณคิวรอ
+    # 🔥 ส่วนที่เพิ่ม: คำนวณว่าต้องรออีกกี่คิว
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = len(waiting_list) - 1
+    queues_ahead = len(waiting_list) - 1 # ลบตัวเองออก
     if queues_ahead < 0: queues_ahead = 0
     
-    # ส่งข้อมูลกลับไปครบชุด
+    # ส่งข้อมูล queues_ahead ไปด้วย
     emit('ticket_printed', {
         'number': new_num, 
         'settings': data['settings'],
@@ -111,9 +106,7 @@ def handle_save(settings):
 @socketio.on('reset_system')
 def handle_reset():
     data = load_data()
-    data["current_queue"] = 0
-    data["last_queue"] = 0
-    data["queues"] = []
+    data["current_queue"] = 0; data["last_queue"] = 0; data["queues"] = []
     save_data(data)
     emit('update_display', {'number': 0, 'play_sound': False}, broadcast=True)
     emit('update_staff', {'waiting_count': 0}, broadcast=True)
