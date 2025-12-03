@@ -10,7 +10,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATA_FILE = "queue_data.json"
 
-# 🏥 รายชื่อโรงพยาบาลตั้งต้น (Mapping รหัส -> ชื่อ)
+# รายชื่อโรงพยาบาลตั้งต้น
 DEFAULT_HOSPITALS = {
     "02500": "โรงพยาบาลส่งเสริมสุขภาพตำบลเมืองไผ่",
     "02501": "โรงพยาบาลส่งเสริมสุขภาพตำบลนิคมสร้างตนเองคลองน้ำใส",
@@ -44,25 +44,21 @@ def save_all_data(data):
 def get_hospital_data(all_data, code):
     today = datetime.date.today().strftime("%Y-%m-%d")
     
-    # ถ้ายังไม่มีข้อมูลของรหัสนี้ ให้สร้างใหม่
     if code not in all_data:
-        # 🟢 ดึงชื่อจากรายการ Default ถ้ามี, ถ้าไม่มีใช้ชื่อทั่วไป
         default_name = DEFAULT_HOSPITALS.get(code, "โรงพยาบาลส่งเสริมสุขภาพตำบล (แก้ไขได้)")
-        
         all_data[code] = {
             "date": today,
             "current_queue": 0,
             "last_queue": 0,
             "queues": [],
             "settings": {
-                "hospital_name": default_name, # ใช้ชื่อตามรหัส
+                "hospital_name": default_name,
                 "ticket_title": "บัตรคิวตรวจโรคทั่วไป",
                 "ticket_footer": "ขอบคุณที่ใช้บริการ",
                 "show_logo": True
             }
         }
     
-    # รีเซ็ตคิวถ้าข้ามวัน
     if all_data[code].get("date") != today:
         all_data[code]["date"] = today
         all_data[code]["current_queue"] = 0
@@ -81,6 +77,7 @@ def login():
 def do_login():
     code = request.form.get('code')
     if code:
+        # ไปหน้า Staff ของรหัสนั้น
         return redirect(url_for('staff_control', code=code))
     return redirect(url_for('login'))
 
@@ -100,16 +97,14 @@ def staff_control(code):
 def check_queue(code):
     my_q = request.args.get('q', type=int)
     all_data = load_all_data()
-    
-    # ดึงข้อมูลแบบปลอดภัย (ถ้าไม่เคยมีข้อมูล ให้สร้าง dummy ขึ้นมาเพื่ออ่านชื่อ)
     if code not in all_data: 
         all_data = get_hospital_data(all_data, code)
-        
+    
     data = all_data[code]
     current_q = data['current_queue']
+    
     status = "waiting"
     wait_count = 0
-    
     if my_q == current_q: status = "called"
     elif my_q < current_q: status = "passed"
     else:
@@ -123,6 +118,11 @@ def check_queue(code):
                            status=status,
                            date=datetime.date.today().strftime("%d/%m/%Y"),
                            hospital_name=data['settings']['hospital_name'])
+
+# 🟢 เพิ่ม Route นี้: เพื่อให้พิมพ์แค่ /02506 แล้วเข้าหน้าบัตรคิวได้เลย
+@app.route('/<code>')
+def short_link(code):
+    return render_template('kiosk.html', code=code)
 
 # --- Socket Events ---
 
@@ -171,39 +171,32 @@ def handle_ticket(data_in):
 def handle_next(data_in):
     code = data_in['code']
     all_data = load_all_data()
-    if code not in all_data: return
-    data = all_data[code]
-    
-    waiting = [q for q in data['queues'] if q['status'] == 'waiting']
-    if waiting:
-        next_q = waiting[0]
-        next_q['status'] = 'called'
-        data['current_queue'] = next_q['number']
-        save_all_data(all_data)
-        
-        emit('update_display', {'number': next_q['number'], 'play_sound': True}, room=code)
-        emit('update_staff', {'waiting_count': len(waiting)-1}, room=code)
+    if code in all_data:
+        data = all_data[code]
+        waiting = [q for q in data['queues'] if q['status'] == 'waiting']
+        if waiting:
+            next_q = waiting[0]
+            next_q['status'] = 'called'
+            data['current_queue'] = next_q['number']
+            save_all_data(all_data)
+            emit('update_display', {'number': next_q['number'], 'play_sound': True}, room=code)
+            emit('update_staff', {'waiting_count': len(waiting)-1}, room=code)
 
 @socketio.on('repeat_call')
 def handle_repeat(data_in):
     code = data_in['code']
     all_data = load_all_data()
-    if code not in all_data: return
-    data = all_data[code]
-    
-    if data['current_queue'] > 0:
-        emit('update_display', {'number': data['current_queue'], 'play_sound': True}, room=code)
+    if code in all_data and all_data[code]['current_queue'] > 0:
+        emit('update_display', {'number': all_data[code]['current_queue'], 'play_sound': True}, room=code)
 
 @socketio.on('save_settings')
 def handle_save(data_in):
     code = data_in['code']
     settings = data_in['settings']
-    
     all_data = load_all_data()
     all_data = get_hospital_data(all_data, code)
     all_data[code]['settings'] = settings
     save_all_data(all_data)
-    
     emit('update_settings', settings, room=code)
 
 @socketio.on('reset_system')
@@ -215,7 +208,6 @@ def handle_reset(data_in):
         all_data[code]["last_queue"] = 0
         all_data[code]["queues"] = []
         save_all_data(all_data)
-        
         emit('update_display', {'number': 0, 'play_sound': False}, room=code)
         emit('update_staff', {'waiting_count': 0}, room=code)
 
