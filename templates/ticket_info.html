@@ -3,110 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>สถานะคิวของคุณ</title>
+    <title>สถานะคิว</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Prompt', sans-serif;
-            background: linear-gradient(135deg, #00b09b, #96c93d);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            color: #333;
-        }
-        .card {
-            background: white;
-            width: 85%;
-            max-width: 400px;
-            padding: 30px;
-            border-radius: 25px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        .logo { width: 80px; margin-bottom: 15px; }
-        .hospital-name { font-size: 1.1rem; color: #555; margin-bottom: 20px; font-weight: 600; }
-        .queue-box {
-            background: #f0f2f5;
-            padding: 20px;
-            border-radius: 15px;
-            margin: 20px 0;
-        }
-        .queue-label { font-size: 1rem; color: #777; }
-        .queue-number {
-            font-size: 5rem;
-            font-weight: bold;
-            color: #00b09b;
-            line-height: 1;
-            margin: 10px 0;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 50px;
-            color: white;
-            font-weight: bold;
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-        }
-        .status-waiting { background: #ffc107; color: #333; }
-        .status-called { background: #28a745; }
-        .status-passed { background: #dc3545; }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 1rem;
-            border-bottom: 1px dashed #ddd;
-            padding-bottom: 5px;
-        }
-        .refresh-btn {
-            background: #00b09b;
-            color: white;
-            border: none;
-            padding: 15px;
-            width: 100%;
-            border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 20px;
-            box-shadow: 0 5px 15px rgba(0,176,155,0.3);
-        }
+        body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #00b09b, #96c93d); margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .card { background: white; width: 85%; max-width: 400px; padding: 30px; border-radius: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .q-number { font-size: 5rem; font-weight: bold; color: #00b09b; line-height: 1; margin: 10px 0; }
+        .status-box { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 20px; }
+        .refresh-btn { background: #00b09b; color: white; border: none; padding: 15px; width: 100%; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; margin-top: 20px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <img src="/static/logo.png" class="logo" onerror="this.style.display='none'">
-        <div class="hospital-name">โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก</div>
+        <h3>{{ hospital_name }}</h3>
+        <p>หมายเลขคิวของคุณ</p>
+        <div class="q-number">{{ my_queue }}</div>
         
-        <div class="queue-box">
-            <div class="queue-label">หมายเลขคิวของคุณ</div>
-            <div class="queue-number">{{ my_queue }}</div>
-            
+        <div class="status-box">
             {% if status == 'called' %}
-                <div class="status-badge status-called">ถึงคิวของท่านแล้ว</div>
+                <h2 style="color: green;">ถึงคิวแล้ว!</h2>
             {% elif status == 'passed' %}
-                <div class="status-badge status-passed">เลยคิวแล้ว</div>
+                <h2 style="color: red;">เลยคิวแล้ว</h2>
             {% else %}
-                <div class="status-badge status-waiting">รอเรียก</div>
-                <div style="font-size: 3rem; font-weight: bold; color: #e74c3c;">{{ wait_count }}</div>
-                <div style="color: #777;">คิวที่ต้องรอ</div>
+                <p>รออีก</p>
+                <h1 style="color: #e74c3c; margin: 0;">{{ wait_count }}</h1>
+                <p>คิว</p>
             {% endif %}
         </div>
-
-        <div class="info-row">
-            <span>คิวปัจจุบัน:</span>
-            <strong>{{ current_queue }}</strong>
-        </div>
-        <div class="info-row">
-            <span>วันที่:</span>
-            <span>{{ date }}</span>
-        </div>
-
-        <button class="refresh-btn" onclick="location.reload()">🔄 อัปเดตสถานะล่าสุด</button>
+        <p>คิวปัจจุบัน: <strong>{{ current_queue }}</strong></p>
+        <button class="refresh-btn" onclick="location.reload()">🔄 อัปเดตสถานะ</button>
     </div>
 </body>
 </html>
