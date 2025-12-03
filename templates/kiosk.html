@@ -6,20 +6,15 @@
     <title>รับบัตรคิว</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    
     <style>
-        /* Screen Styles */
         body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
         .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; text-align: center; font-size: 1.8rem; padding: 0 20px; }
         .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; box-shadow: 0 5px 15px rgba(0,176,155,0.4); cursor: pointer; transition: transform 0.2s; }
         .btn-ticket:active { transform: scale(0.95); }
-
-        /* Print Styles */
         #printable-area { display: none; }
         @media print {
             body * { visibility: hidden; height: 0; overflow: hidden; }
@@ -38,15 +33,12 @@
     </style>
 </head>
 <body>
-
     <h1 class="header-main" id="live-hospital-name">...</h1>
-    
     <div class="kiosk-card">
         <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="live-logo">
         <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
         <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
     </div>
-
     <div id="printable-area">
         <br>
         <img src="/static/logo.png" class="ticket-logo" id="print-logo">
@@ -56,35 +48,29 @@
         <div id="qrcode-container"></div>
         
         <div class="ticket-number" id="print-num">A-000</div>
-        <div class="ticket-wait" id="print-wait">...</div>
+        <div class="ticket-wait" id="print-wait">รออีก ... คิว</div>
         <div class="ticket-time" id="print-time">Time: --:--</div>
         <div class="ticket-footer" id="print-footer">...</div>
         <br><br>.
     </div>
-
     <script>
         const socket = io();
-
         socket.on('update_settings', (settings) => {
             document.getElementById('live-hospital-name').innerText = settings.hospital_name;
             document.getElementById('live-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
         });
-
         function getTicket() {
             socket.emit('get_ticket');
         }
-
         socket.on('ticket_printed', (data) => {
             const settings = data.settings;
             const numberPadded = String(data.number).padStart(3, '0');
-            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const queuesAhead = data.queues_ahead || 0;
             const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
-            
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // A. ใส่ข้อมูลลงกระดาษ
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
@@ -93,38 +79,30 @@
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (เปลี่ยนเป็นลิ้งค์เว็บสวยๆ)
+            // 🟢 สร้าง QR Code เป็นลิ้งค์เว็บ
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
-                qrContainer.innerHTML = ""; 
-                
-                // 🟢 สร้าง URL ลิ้งค์ไปหน้า ticket_info
-                const currentUrl = window.location.origin; // เช่น https://call-cyzh.onrender.com
-                const qrUrl = `${currentUrl}/ticket?no=${numberPadded}&wait=${queuesAhead}&time=${timeStr}`;
+                qrContainer.innerHTML = "";
+                // สร้าง URL: https://ชื่อเว็บ.com/check_queue?q=1
+                const currentUrl = window.location.origin;
+                const qrLink = `${currentUrl}/check_queue?q=${data.number}`;
                 
                 new QRCode(qrContainer, {
-                    text: qrUrl, // ใส่ Link ลงไปใน QR
-                    width: 100,
-                    height: 100,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
+                    text: qrLink, // ใส่ลิงก์ลงไปใน QR
+                    width: 100, height: 100,
+                    colorDark : "#000000", colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.M
                 });
             }
 
-            // C. Popup
             Swal.fire({
-                title: 'กำลังพิมพ์บัตรคิว...',
-                html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1>`,
+                title: 'รับบัตรคิวสำเร็จ',
+                html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
                 icon: 'success',
                 timer: 2000,
                 showConfirmButton: false
             });
-
-            // D. Print
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            setTimeout(() => { window.print(); }, 500);
         });
     </script>
 </body>
