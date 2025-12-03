@@ -30,6 +30,10 @@
             .ticket-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 5px; }
             #qrcode-container { display: flex !important; justify-content: center !important; margin: 10px auto !important; }
             .ticket-number { font-size: 40px; font-weight: bold; border: 2px solid black; padding: 5px; display: inline-block; margin: 10px 0; border-radius: 8px; }
+            
+            /* เพิ่มสไตล์สำหรับบรรทัดรอคิว */
+            .ticket-wait { font-size: 14px; font-weight: bold; margin: 5px 0; }
+            
             .ticket-time { font-size: 12px; margin-bottom: 15px; }
             .ticket-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 5px; white-space: pre-wrap; }
             @page { margin: 0; }
@@ -55,6 +59,9 @@
         <div id="qrcode-container"></div>
         
         <div class="ticket-number" id="print-num">A-000</div>
+        
+        <div class="ticket-wait" id="print-wait">...</div>
+        
         <div class="ticket-time" id="print-time">Time: --:--</div>
         <div class="ticket-footer" id="print-footer">...</div>
         <br><br>.
@@ -84,22 +91,31 @@
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
+            
+            // รับค่าจำนวนคิวที่รอ (ถ้าไม่มีให้เป็น 0)
+            const queuesAhead = (data.queues_ahead !== undefined) ? data.queues_ahead : 0;
+            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
 
             // A. Update Print Layout Text
             document.getElementById('print-hospital').innerText = settings.hospital_name;
             document.getElementById('print-title').innerText = settings.ticket_title;
             document.getElementById('print-num').innerText = numberPadded;
+            
+            // ใส่ข้อมูลคิวรอลงในกระดาษ
+            document.getElementById('print-wait').innerText = waitText;
+            
             document.getElementById('print-footer').innerText = settings.ticket_footer;
             document.getElementById('print-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('print-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. Generate QR Code
+            // B. Generate QR Code (ข้อมูลครบถ้วน)
             const qrContainer = document.getElementById("qrcode-container");
             if(qrContainer) {
                 qrContainer.innerHTML = ""; // Clear previous QR
                 
-                // Simple QR generation
-                const qrDataString = `Q:${numberPadded} | ${timeStr}`;
+                // ข้อมูลใน QR: ชื่อรพ., เลขคิว, จำนวนที่รอ, วันเวลา
+                const qrDataString = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
+                
                 new QRCode(qrContainer, {
                     text: qrDataString,
                     width: 100,
@@ -113,7 +129,11 @@
             // C. Show Success Popup
             Swal.fire({
                 title: 'กำลังพิมพ์บัตรคิว...',
-                html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1>`,
+                html: `
+                    <h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1>
+                    <h3 class="text-danger">${waitText}</h3>
+                    <p>กรุณารอเรียกหมายเลขของท่าน</p>
+                `,
                 icon: 'success',
                 timer: 2000,
                 showConfirmButton: false
