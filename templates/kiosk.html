@@ -18,6 +18,11 @@
         .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; font-size: 1.8rem; }
         .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; cursor: pointer; }
 
+        /* พื้นที่ซ่อนสำหรับสร้าง QR Code (ห้ามลบ) */
+        #hidden-qr { 
+            position: absolute; top: -9999px; left: -9999px; 
+        }
+
         /* ส่วนปริ้น: ซ่อนไว้ด้านหลัง */
         #printable-area {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -30,21 +35,20 @@
             #printable-area * { visibility: visible; }
             
             .print-container { width: 100%; text-align: center; font-family: 'Courier New', monospace; color: black; padding-top: 10px; }
-            .p-logo { width: 60px; margin-bottom: 5px; }
+            .p-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
             .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; }
             .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
             
-            /* กล่อง QR Code */
-            #qrcode-box { 
-                display: flex; justify-content: center; margin: 10px auto; 
-                width: 120px; height: 120px; /* จองพื้นที่ไว้เลย */
+            /* รูป QR Code จริงที่จะโชว์ */
+            #final-qr-img { 
+                display: block; margin: 10px auto; 
+                width: 120px; height: 120px;
             }
-            #qrcode-box img { width: 100%; height: auto; }
 
             .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; padding: 5px 15px; border-radius: 10px; display: inline-block; margin: 10px 0; }
             .p-wait { font-size: 14px; margin-bottom: 5px; }
             .p-time { font-size: 12px; margin-bottom: 10px; }
-            .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; }
+            .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; white-space: pre-wrap; }
             @page { margin: 0; }
         }
     </style>
@@ -59,13 +63,15 @@
         <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
     </div>
 
+    <div id="hidden-qr"></div>
+
     <div id="printable-area">
         <div class="print-container">
             <img src="/static/logo.png" class="p-logo" id="p-logo">
             <div class="p-header" id="p-hospital">...</div>
             <div class="p-title" id="p-title">...</div>
             
-            <div id="qrcode-box"></div>
+            <img id="final-qr-img" src="" alt="QR Code">
             
             <div class="p-number" id="p-num">A-000</div>
             <div class="p-wait" id="p-wait">...</div>
@@ -95,7 +101,7 @@
             const dateStr = now.toLocaleDateString('th-TH');
             const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
 
-            // A. ใส่ข้อมูล
+            // 1. ใส่ข้อมูลตัวหนังสือ
             document.getElementById('p-hospital').innerText = settings.hospital_name;
             document.getElementById('p-title').innerText = settings.ticket_title;
             document.getElementById('p-num').innerText = numberPadded;
@@ -104,26 +110,34 @@
             document.getElementById('p-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
             document.getElementById('p-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
 
-            // B. สร้าง QR Code (แบบ Offline - เสถียรที่สุด)
-            const qrBox = document.getElementById("qrcode-box");
-            qrBox.innerHTML = ""; // ล้างรูปเก่า
+            // 2. 🟢 สร้าง QR Code แบบ Canvas -> Image (วิธีนี้ชัวร์สุด)
+            const hiddenDiv = document.getElementById("hidden-qr");
+            hiddenDiv.innerHTML = ""; // ล้างของเก่า
             
-            try {
-                const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\n${dateStr} ${timeStr}`;
-                
-                new QRCode(qrBox, {
-                    text: qrText,
-                    width: 120,
-                    height: 120,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.L // ใช้ Level L เพื่อให้อ่านง่าย
-                });
-            } catch (error) {
-                console.error("QR Error", error);
-            }
+            const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
+            
+            // สร้าง QR ในพื้นที่ลับ
+            new QRCode(hiddenDiv, {
+                text: qrText,
+                width: 150,
+                height: 150,
+                correctLevel : QRCode.CorrectLevel.M
+            });
 
-            // C. Popup
+            // รอแป๊บนึงให้ QR สร้างเสร็จ แล้วแปลงเป็นรูป
+            setTimeout(() => {
+                const qrCanvas = hiddenDiv.querySelector('canvas');
+                if (qrCanvas) {
+                    const qrImageURL = qrCanvas.toDataURL("image/png");
+                    document.getElementById('final-qr-img').src = qrImageURL;
+                } else {
+                    // Fallback ถ้า Canvas ไม่มา (อาจเป็น img tag)
+                    const qrImgSrc = hiddenDiv.querySelector('img').src;
+                    document.getElementById('final-qr-img').src = qrImgSrc;
+                }
+            }, 100);
+
+            // 3. Popup
             Swal.fire({
                 title: 'รับบัตรคิวสำเร็จ',
                 html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
@@ -132,10 +146,10 @@
                 showConfirmButton: false
             });
 
-            // D. สั่งปริ้น (หน่วงเวลา 1 วินาที ให้รูปวาดเสร็จ)
+            // 4. สั่งปริ้น (รอรูปโหลดเสร็จ)
             setTimeout(() => {
                 window.print();
-            }, 1000);
+            }, 800);
         });
     </script>
 </body>
