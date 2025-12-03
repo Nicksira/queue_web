@@ -25,8 +25,7 @@ def load_data():
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            if data.get("date") != today:
-                data = default_data
+            if data.get("date") != today: return default_data
             return data
     except: return default_data
 
@@ -41,18 +40,41 @@ def tv_display(): return render_template('tv.html')
 @app.route('/staff')
 def staff_control(): return render_template('staff.html')
 
-# 🟢 เพิ่ม Route ใหม่สำหรับหน้า QR Code
-@app.route('/ticket')
-def ticket_info():
-    no = request.args.get('no', '---')
-    wait = request.args.get('wait', '0')
-    time = request.args.get('time', '--:--')
-    return render_template('ticket_info.html', no=no, wait=wait, time=time)
+# 🟢 Route ใหม่: สำหรับสแกน QR Code แล้วดูสถานะสดๆ
+@app.route('/check_queue')
+def check_queue():
+    my_q = request.args.get('q', type=int)
+    data = load_data()
+    
+    current_q = data['current_queue']
+    
+    # คำนวณสถานะ
+    status = "waiting"
+    wait_count = 0
+    
+    if my_q == current_q:
+        status = "called"
+    elif my_q < current_q:
+        status = "passed"
+    else:
+        # นับจำนวนคิวที่ "รออยู่" และ "น้อยกว่าคิวเรา"
+        waiting_list = [q for q in data['queues'] if q['status'] == 'waiting' and q['number'] < my_q]
+        wait_count = len(waiting_list)
+        # หรือถ้าเอาแบบง่าย: คิวเรา - คิวปัจจุบัน - 1 (ถ้าเรียงลำดับ)
+        # แต่ใช้วิธีนับ array ชัวร์กว่าเผื่อมีการข้ามคิว
+    
+    return render_template('ticket_info.html', 
+                           my_queue=f"{my_q:03d}", 
+                           current_queue=f"{current_q:03d}",
+                           wait_count=wait_count,
+                           status=status,
+                           date=datetime.date.today().strftime("%d/%m/%Y"))
 
 @socketio.on('connect')
 def handle_connect():
     data = load_data()
     emit('update_settings', data['settings'])
+    emit('update_display', {'number': data['current_queue'], 'play_sound': False})
     emit('update_staff', {'waiting_count': len([q for q in data['queues'] if q['status'] == 'waiting'])})
 
 @socketio.on('get_ticket')
@@ -68,7 +90,8 @@ def handle_ticket():
     save_data(data)
     
     waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
-    queues_ahead = max(0, len(waiting_list) - 1)
+    queues_ahead = len(waiting_list) - 1
+    if queues_ahead < 0: queues_ahead = 0
     
     emit('ticket_printed', {
         'number': new_num, 
