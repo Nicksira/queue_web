@@ -8,170 +8,73 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
     <style>
-        body { 
-            background-color: #111; 
-            color: white; 
-            height: 100vh; 
-            overflow: hidden; 
-            font-family: 'Prompt', sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            margin: 0;
-        }
-        
-        /* Header ด้านบน */
-        .header { 
-            background: linear-gradient(90deg, #004d40, #00695c); 
-            padding: 20px 40px; 
-            display: flex; 
-            align-items: center; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
-            height: 15vh;
-            position: relative; /* เพื่อให้อ้างอิงตำแหน่งลูกได้ */
-        }
-        
+        body { background-color: #111; color: white; height: 100vh; overflow: hidden; font-family: 'Prompt', sans-serif; display: flex; flex-direction: column; margin: 0; }
+        .header { background: linear-gradient(90deg, #004d40, #00695c); padding: 20px 40px; display: flex; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); height: 15vh; position: relative; }
         .header img { height: 80%; margin-right: 30px; }
-        
         .header-text h1 { margin: 0; line-height: 1.2; }
         .hosp-name { font-size: 1.8vw; opacity: 0.9; font-weight: 400; }
         .dept-name { font-size: 2.5vw; font-weight: bold; }
-
-        /* 🟢 นาฬิกา Real-time มุมขวาบน */
-        .clock-container {
-            position: absolute;
-            right: 40px;
-            top: 50%;
-            transform: translateY(-50%);
-            text-align: right;
-        }
-        .clock-time {
-            font-size: 4vw;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 0 10px rgba(0,0,0,0.5);
-            line-height: 1;
-            font-family: 'Courier New', monospace; /* เพื่อให้ตัวเลขไม่ขยับไปมา */
-        }
-        .clock-date {
-            font-size: 1.2vw;
-            color: #ddd;
-        }
-
-        /* ส่วนแสดงผลหลัก */
-        .main { 
-            flex-grow: 1; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            background: radial-gradient(circle at center, #263238 0%, #000000 100%);
-        }
-        
+        .clock-container { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); text-align: right; }
+        .clock-time { font-size: 4vw; font-weight: bold; color: #fff; text-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 1; font-family: 'Courier New', monospace; }
+        .clock-date { font-size: 1.2vw; color: #ddd; }
+        .main { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #263238 0%, #000000 100%); }
         .label { font-size: 3vw; color: #aaa; margin-bottom: 2vh; text-transform: uppercase; letter-spacing: 2px; }
-        
-        .q-num { 
-            font-size: 25vw; 
-            font-weight: bold; 
-            color: #00e676; 
-            line-height: 1; 
-            text-shadow: 0 0 50px rgba(0,230,118,0.4); 
-            font-variant-numeric: tabular-nums;
-        }
-        
-        .status { 
-            font-size: 4vw; 
-            color: #ffeb3b; 
-            margin-top: 5vh; 
-            background: rgba(255,255,255,0.1); 
-            padding: 10px 50px; 
-            border-radius: 50px; 
-            backdrop-filter: blur(5px);
-        }
-
-        /* Overlay สำหรับคลิกเปิดเสียง */
-        #overlay { 
-            position: fixed; inset: 0; 
-            background: rgba(0,0,0,0.95); 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            z-index: 9999; 
-            cursor: pointer; 
-        }
+        .q-num { font-size: 25vw; font-weight: bold; color: #00e676; line-height: 1; text-shadow: 0 0 50px rgba(0,230,118,0.4); font-variant-numeric: tabular-nums; }
+        .status { font-size: 4vw; color: #ffeb3b; margin-top: 5vh; background: rgba(255,255,255,0.1); padding: 10px 50px; border-radius: 50px; backdrop-filter: blur(5px); }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; }
         .tap-icon { font-size: 5rem; margin-bottom: 20px; animation: pulse 2s infinite; }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.7; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
-
     <div id="overlay">
         <div class="tap-icon">👆</div>
         <h1 class="text-white">แตะหน้าจอเพื่อเริ่มระบบเสียง</h1>
         <p class="text-secondary">Click anywhere to start</p>
     </div>
-
     <div class="header">
         <img src="/static/logo.png" onerror="this.style.display='none'" id="tv-logo">
         <div class="header-text">
             <div class="hosp-name" id="tv-hospital-name">...</div>
             <div class="dept-name">ห้องตรวจโรคทั่วไป</div>
         </div>
-        
         <div class="clock-container">
             <div class="clock-time" id="realtime-clock">--:--:--</div>
             <div class="clock-date" id="realtime-date">...</div>
         </div>
     </div>
-
     <div class="main">
         <div class="label">หมายเลขคิว</div>
         <div class="q-num" id="q-num">---</div>
         <div class="status" id="status">รอเรียก...</div>
     </div>
+    
+    <audio id="audio-player" style="display:none;"></audio>
 
     <script>
         const socket = io();
-        
         const pathParts = window.location.pathname.split('/');
         const hospCode = pathParts[pathParts.length - 1];
-
         let audioReady = false;
+        const player = document.getElementById('audio-player');
 
-        // ฟังก์ชันนาฬิกา Real-time
         function updateClock() {
             const now = new Date();
-            
-            // เวลา HH:MM:SS
-            const timeString = now.toLocaleTimeString('th-TH', { hour12: false });
-            document.getElementById('realtime-clock').innerText = timeString;
-            
-            // วันที่ แบบไทย
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const dateString = now.toLocaleDateString('th-TH', options);
-            document.getElementById('realtime-date').innerText = dateString;
+            document.getElementById('realtime-clock').innerText = now.toLocaleTimeString('th-TH', { hour12: false });
+            document.getElementById('realtime-date').innerText = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
-        
-        // อัปเดตทุก 1 วินาที
-        setInterval(updateClock, 1000);
-        updateClock(); // เรียกทันทีเมื่อโหลด
+        setInterval(updateClock, 1000); updateClock();
 
-        // ฟังก์ชันปลดล็อกเสียง
         document.getElementById('overlay').onclick = function() {
             this.style.opacity = '0';
             setTimeout(() => { this.style.display = 'none'; }, 500);
             audioReady = true;
-            speak("ระบบเรียกคิว พร้อมทำงานค่ะ");
+            // เล่นเสียงว่างๆ เพื่อปลดล็อก
+            player.src = "";
+            player.play().catch(() => {});
         };
 
-        // Socket Events
         socket.on('connect', () => {
-            console.log("Connected to Hospital Code:", hospCode);
             socket.emit('join', { code: hospCode });
         });
 
@@ -190,32 +93,18 @@
                 statusEl.style.color = "#fff";
                 statusEl.style.background = "#28a745";
                 
-                // Blink Effect
-                numEl.style.color = "#fff";
-                setTimeout(() => numEl.style.color = "#00e676", 300);
-                setTimeout(() => numEl.style.color = "#fff", 600);
-                setTimeout(() => numEl.style.color = "#00e676", 900);
-
+                // 🟢 เล่นเสียง MP3 ที่ส่งมาจาก Server
+                if(data.play_sound && data.sound_url && audioReady) {
+                    // ใส่ timestamp เพื่อไม่ให้ browser จำไฟล์เก่า (Cache Busting)
+                    player.src = data.sound_url + "?t=" + new Date().getTime();
+                    player.play().catch(e => console.log("Audio Error:", e));
+                }
             } else {
                 numEl.innerText = "---";
                 statusEl.innerText = "รอเรียก...";
                 statusEl.style.background = "rgba(255,255,255,0.1)";
             }
-
-            if(data.play_sound && audioReady) {
-                speak("เชิญคิวที่ " + data.number + " ค่ะ");
-            }
         });
-
-        function speak(text) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'th-TH';
-                utterance.rate = 0.9;
-                window.speechSynthesis.speak(utterance);
-            }
-        }
     </script>
 </body>
 </html>
