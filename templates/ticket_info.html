@@ -5,33 +5,137 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>สถานะคิว</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    
     <style>
-        body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #00b09b, #96c93d); margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .card { background: white; width: 85%; max-width: 400px; padding: 30px; border-radius: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .q-number { font-size: 5rem; font-weight: bold; color: #00b09b; line-height: 1; margin: 10px 0; }
-        .status-box { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 20px; }
-        .refresh-btn { background: #00b09b; color: white; border: none; padding: 15px; width: 100%; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #00b09b, #96c93d); margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center; color: #333; }
+        .card { background: white; width: 85%; max-width: 400px; padding: 30px; border-radius: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .logo { width: 80px; margin-bottom: 15px; }
+        .hospital-name { font-size: 1.1rem; color: #555; margin-bottom: 20px; font-weight: 600; }
+        .queue-box { background: #f0f2f5; padding: 20px; border-radius: 15px; margin: 20px 0; }
+        .queue-label { font-size: 1rem; color: #777; }
+        .queue-number { font-size: 5rem; font-weight: bold; color: #00b09b; line-height: 1; margin: 10px 0; }
+        
+        .status-badge { display: inline-block; padding: 8px 20px; border-radius: 50px; color: white; font-weight: bold; font-size: 1.2rem; margin-bottom: 15px; width: 100%; }
+        .status-waiting { background: #ffc107; color: #333; }
+        .status-called { background: #28a745; animation: blink 1s infinite; }
+        .status-passed { background: #dc3545; }
+        
+        .wait-info { font-size: 1.5rem; color: #e74c3c; font-weight: bold; }
+        .btn-notify { background: #007bff; color: white; border: none; padding: 10px; width: 100%; border-radius: 10px; margin-top: 10px; cursor: pointer; display: none; }
+        
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
     <div class="card">
-        <h3>{{ hospital_name }}</h3>
-        <p>หมายเลขคิวของคุณ</p>
-        <div class="q-number">{{ my_queue }}</div>
+        <img src="/static/logo.png" class="logo" onerror="this.style.display='none'">
+        <div class="hospital-name">{{ hospital_name }}</div>
         
-        <div class="status-box">
-            {% if status == 'called' %}
-                <h2 style="color: green;">ถึงคิวแล้ว!</h2>
-            {% elif status == 'passed' %}
-                <h2 style="color: red;">เลยคิวแล้ว</h2>
-            {% else %}
-                <p>รออีก</p>
-                <h1 style="color: #e74c3c; margin: 0;">{{ wait_count }}</h1>
-                <p>คิว</p>
-            {% endif %}
+        <div class="queue-box">
+            <div class="queue-label">หมายเลขคิวของคุณ</div>
+            <div class="queue-number">{{ my_queue }}</div>
+            
+            <div id="status-area">
+                {% if status == 'called' %}
+                    <div class="status-badge status-called">🔔 ถึงคิวของท่านแล้ว!</div>
+                    <p>กรุณาไปที่ห้องตรวจทันที</p>
+                {% elif status == 'passed' %}
+                    <div class="status-badge status-passed">เลยคิวแล้ว</div>
+                    <p>กรุณาติดต่อเจ้าหน้าที่</p>
+                {% else %}
+                    <div class="status-badge status-waiting">รอเรียก</div>
+                    <div class="wait-info">รออีก <span id="wait-count">{{ wait_count }}</span> คิว</div>
+                {% endif %}
+            </div>
         </div>
-        <p>คิวปัจจุบัน: <strong>{{ current_queue }}</strong></p>
-        <button class="refresh-btn" onclick="location.reload()">🔄 อัปเดตสถานะ</button>
+
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span>คิวปัจจุบัน:</span>
+            <strong id="current-q">{{ current_queue }}</strong>
+        </div>
+        
+        <button id="btn-enable-notify" class="btn-notify" onclick="requestNotify()">🔕 แตะเพื่อเปิดแจ้งเตือนเมื่อถึงคิว</button>
     </div>
+
+    <audio id="alert-sound" src="/static/ding.mp3"></audio>
+
+    <script>
+        const socket = io();
+        const myQueue = parseInt("{{ my_queue }}");
+        const hospCode = "{{ code }}"; // รับค่ารหัสจาก Server
+
+        // ขออนุญาตแจ้งเตือน
+        function requestNotify() {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    document.getElementById('btn-enable-notify').style.display = 'none';
+                    alert("เปิดแจ้งเตือนเรียบร้อย! เราจะแจ้งเตือนเมื่อถึงคิวท่าน");
+                }
+            });
+            // ปลดล็อกเสียงบนมือถือ
+            document.getElementById('alert-sound').play().catch(() => {});
+            document.getElementById('alert-sound').pause();
+        }
+
+        // แสดงปุ่มเปิดแจ้งเตือนถ้ายังไม่ได้ขอ
+        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            document.getElementById('btn-enable-notify').style.display = 'block';
+        }
+
+        // เข้าห้องรับข้อมูล Real-time
+        socket.on('connect', () => {
+            socket.emit('join', { code: hospCode });
+        });
+
+        // เมื่อมีการเรียกคิวใหม่
+        socket.on('update_display', (data) => {
+            const currentQ = data.number;
+            document.getElementById('current-q').innerText = String(currentQ).padStart(3, '0');
+
+            // คำนวณคิวที่รอใหม่
+            const wait = myQueue - currentQ - 1; // (คำนวณคร่าวๆ)
+            
+            const statusArea = document.getElementById('status-area');
+
+            if (currentQ === myQueue) {
+                // 🔥 ถึงคิวแล้ว!
+                statusArea.innerHTML = `
+                    <div class="status-badge status-called">🔔 ถึงคิวของท่านแล้ว!</div>
+                    <p>กรุณาไปที่ห้องตรวจทันที</p>
+                `;
+                notifyUser(); // สั่น + แจ้งเตือน
+                
+            } else if (currentQ > myQueue) {
+                statusArea.innerHTML = '<div class="status-badge status-passed">เลยคิวแล้ว</div><p>กรุณาติดต่อเจ้าหน้าที่</p>';
+            } else {
+                // ยังรออยู่
+                const realWait = wait < 0 ? 0 : wait; // ป้องกันเลขติดลบ
+                statusArea.innerHTML = `
+                    <div class="status-badge status-waiting">รอเรียก</div>
+                    <div class="wait-info">รออีก <span id="wait-count">${realWait}</span> คิว</div>
+                `;
+            }
+        });
+
+        function notifyUser() {
+            // 1. สั่น (Android Only)
+            if (navigator.vibrate) {
+                navigator.vibrate([500, 200, 500, 200, 1000]);
+            }
+
+            // 2. เสียง (ถ้าเปิดหน้าจออยู่)
+            const audio = document.getElementById('alert-sound');
+            if(audio) audio.play().catch(e => console.log("Audio blocked"));
+
+            // 3. แจ้งเตือน (Notification)
+            if (Notification.permission === "granted") {
+                new Notification("🔔 ถึงคิวของท่านแล้ว!", {
+                    body: `หมายเลขคิว ${myQueue} เชิญที่ห้องตรวจค่ะ`,
+                    icon: '/static/logo.png'
+                });
+            }
+        }
+    </script>
 </body>
 </html>
