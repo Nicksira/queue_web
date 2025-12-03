@@ -1,177 +1,115 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>รับบัตรคิว</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    
-    <style>
-        /* สไตล์หน้าจอปกติ */
-        body { font-family: 'Prompt', sans-serif; background: #e3f2fd; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; }
-        .kiosk-card { background: white; padding: 40px; border-radius: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .header-main { font-weight: 600; color: #004d40; margin-bottom: 20px; font-size: 1.8rem; }
-        .btn-ticket { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; padding: 20px; font-size: 2rem; border-radius: 50px; width: 100%; border: none; font-weight: bold; cursor: pointer; }
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+import json
+import os
+import datetime
 
-        /* ส่วนปริ้น: ใช้ position fixed และ z-index ต่ำๆ แทนการซ่อน */
-        #printable-area {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: -1; /* ซ่อนไว้หลังสุด */
-            opacity: 0;  /* มองไม่เห็น */
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+DATA_FILE = "queue_data.json"
+
+def load_data():
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    default_data = {
+        "date": today, "current_queue": 0, "last_queue": 0, "queues": [],
+        "settings": {
+            "hospital_name": "โรงพยาบาลส่งเสริมสุขภาพตำบลทับพริก",
+            "ticket_title": "บัตรคิวตรวจโรคทั่วไป",
+            "ticket_footer": "ขอบคุณที่ใช้บริการ",
+            "show_logo": True
         }
+    }
+    if not os.path.exists(DATA_FILE): return default_data
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if data.get("date") != today:
+                data["date"] = today
+                data["current_queue"] = 0
+                data["last_queue"] = 0
+                data["queues"] = []
+            if "settings" not in data: data["settings"] = default_data["settings"]
+            return data
+    except: return default_data
 
-        /* --- สไตล์ตอนสั่งปริ้น (สำคัญมาก) --- */
-        @media print {
-            /* ซ่อนทุกอย่างที่เป็น UI */
-            body * {
-                visibility: hidden;
-            }
-            
-            /* ดึงส่วนปริ้นกลับมาแสดงและจัดตำแหน่ง */
-            #printable-area {
-                visibility: visible !important;
-                opacity: 1 !important;
-                z-index: 9999 !important;
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                margin: 0;
-                padding: 0;
-            }
-            
-            /* บังคับให้ลูกๆ ของ printable-area แสดงผล */
-            #printable-area * {
-                visibility: visible !important;
-            }
-            
-            /* จัดหน้าตาในกระดาษ */
-            .p-container { text-align: center; color: black; font-family: 'Courier New', monospace; padding-top: 10px; }
-            .p-logo { width: 60px; filter: grayscale(100%); margin-bottom: 5px; }
-            .p-header { font-size: 16px; font-weight: bold; margin: 5px 0; }
-            .p-title { font-size: 14px; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 10px; }
-            
-            /* กล่อง QR Code */
-            #qrcode-box { 
-                display: flex; justify-content: center; align-items: center;
-                margin: 10px auto; 
-                width: 100px; height: 100px;
-            }
-            #qrcode-box img { width: 100%; height: auto; }
-            
-            .p-number { font-size: 50px; font-weight: bold; border: 2px solid black; display: inline-block; padding: 5px 15px; border-radius: 10px; margin: 10px 0; }
-            .p-wait { font-size: 14px; margin-bottom: 5px; }
-            .p-time { font-size: 12px; }
-            .p-footer { font-size: 12px; border-top: 1px dashed black; padding-top: 10px; margin-top: 10px; white-space: pre-wrap; }
-            
-            @page { margin: 0; }
-        }
-    </style>
-</head>
-<body>
+def save_data(data):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
-    <h1 class="header-main" id="screen-hospital">...</h1>
+@app.route('/')
+def index(): return render_template('kiosk.html')
+@app.route('/tv')
+def tv_display(): return render_template('tv.html')
+@app.route('/staff')
+def staff_control(): return render_template('staff.html')
+
+@socketio.on('connect')
+def handle_connect():
+    data = load_data()
+    emit('update_settings', data['settings'])
+    emit('update_display', {'number': data['current_queue'], 'play_sound': False})
+    emit('update_staff', {'waiting_count': len([q for q in data['queues'] if q['status'] == 'waiting'])})
+
+@socketio.on('get_ticket')
+def handle_ticket():
+    data = load_data()
+    new_num = data['last_queue'] + 1
+    data['last_queue'] = new_num
     
-    <div class="kiosk-card">
-        <img src="/static/logo.png" width="100" class="mb-4" onerror="this.style.display='none'" id="screen-logo">
-        <h2 class="mb-4 text-secondary">ยินดีต้อนรับ</h2>
-        <button onclick="getTicket()" class="btn btn-ticket">🖨️ กดรับบัตรคิว</button>
-    </div>
+    current_time = datetime.datetime.now().strftime("%H:%M")
+    data['queues'].append({
+        "number": new_num, "status": "waiting", "time": current_time
+    })
+    save_data(data)
+    
+    # 🟢 คำนวณคิวรอ
+    waiting_list = [q for q in data['queues'] if q['status'] == 'waiting']
+    queues_ahead = len(waiting_list) - 1
+    if queues_ahead < 0: queues_ahead = 0
+    
+    # ส่งข้อมูลกลับไปครบชุด
+    emit('ticket_printed', {
+        'number': new_num, 
+        'settings': data['settings'],
+        'queues_ahead': queues_ahead
+    })
+    
+    emit('update_staff', {'waiting_count': len(waiting_list)}, broadcast=True)
 
-    <div id="printable-area">
-        <div class="p-container">
-            <img src="/static/logo.png" class="p-logo" id="p-logo">
-            <div class="p-header" id="p-hospital">...</div>
-            <div class="p-title" id="p-title">...</div>
-            
-            <div id="qrcode-box"></div>
-            
-            <div class="p-number" id="p-num">A-000</div>
-            <div class="p-wait" id="p-wait">...</div>
-            <div class="p-time" id="p-time">...</div>
-            <div class="p-footer" id="p-footer">...</div>
-        </div>
-    </div>
+@socketio.on('call_next')
+def handle_next():
+    data = load_data()
+    waiting = [q for q in data['queues'] if q['status'] == 'waiting']
+    if waiting:
+        next_q = waiting[0]
+        next_q['status'] = 'called'
+        data['current_queue'] = next_q['number']
+        save_data(data)
+        emit('update_display', {'number': next_q['number'], 'play_sound': True}, broadcast=True)
+        emit('update_staff', {'waiting_count': len(waiting)-1}, broadcast=True)
 
-    <script>
-        const socket = io();
+@socketio.on('repeat_call')
+def handle_repeat():
+    data = load_data()
+    if data['current_queue'] > 0:
+        emit('update_display', {'number': data['current_queue'], 'play_sound': True}, broadcast=True)
 
-        // 1. รับค่า Setting
-        socket.on('update_settings', (settings) => {
-            document.getElementById('screen-hospital').innerText = settings.hospital_name;
-            document.getElementById('screen-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
-        });
+@socketio.on('save_settings')
+def handle_save(settings):
+    data = load_data()
+    data['settings'] = settings
+    save_data(data)
+    emit('update_settings', settings, broadcast=True)
 
-        // 2. กดปุ่ม
-        function getTicket() {
-            socket.emit('get_ticket');
-        }
+@socketio.on('reset_system')
+def handle_reset():
+    data = load_data()
+    data["current_queue"] = 0; data["last_queue"] = 0; data["queues"] = []
+    save_data(data)
+    emit('update_display', {'number': 0, 'play_sound': False}, broadcast=True)
+    emit('update_staff', {'waiting_count': 0}, broadcast=True)
 
-        // 3. รับข้อมูล + สร้าง QR + ปริ้น
-        socket.on('ticket_printed', (data) => {
-            const settings = data.settings;
-            const numberPadded = String(data.number).padStart(3, '0');
-            const queuesAhead = data.queues_ahead || 0;
-            const waitText = queuesAhead > 0 ? `(รออีก ${queuesAhead} คิว)` : "(ถึงคิวท่านถัดไป)";
-            
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('th-TH');
-            const timeStr = now.toLocaleTimeString('th-TH').slice(0,5);
-
-            // A. ใส่ข้อมูลลงกระดาษ
-            document.getElementById('p-hospital').innerText = settings.hospital_name;
-            document.getElementById('p-title').innerText = settings.ticket_title;
-            document.getElementById('p-num').innerText = numberPadded;
-            document.getElementById('p-wait').innerText = waitText;
-            document.getElementById('p-footer').innerText = settings.ticket_footer;
-            document.getElementById('p-time').innerText = `วันที่ ${dateStr} เวลา ${timeStr} น.`;
-            document.getElementById('p-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
-
-            // B. สร้าง QR Code (แบบ Safe Mode)
-            const qrBox = document.getElementById("qrcode-box");
-            qrBox.innerHTML = ""; // ล้างรูปเก่าทิ้ง
-            
-            try {
-                // สร้าง QR Code (ข้อมูลครบ)
-                const qrText = `${settings.hospital_name}\nคิวที่: ${numberPadded}\n${waitText}\nวันที่: ${dateStr} ${timeStr}`;
-                
-                new QRCode(qrBox, {
-                    text: qrText,
-                    width: 100,
-                    height: 100,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.L
-                });
-            } catch (error) {
-                console.log("QR Error skipped"); 
-            }
-
-            // C. Popup
-            Swal.fire({
-                title: 'รับบัตรคิวสำเร็จ',
-                html: `<h1 style="font-size:4rem; color:#00b09b;">${numberPadded}</h1><h3 class="text-danger">${waitText}</h3>`,
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
-
-            // D. ปริ้น (หน่วงเวลาให้ QR วาดเสร็จ)
-            setTimeout(() => {
-                window.print();
-            }, 800);
-        });
-    </script>
-</body>
-</html>
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=5005, debug=True)
