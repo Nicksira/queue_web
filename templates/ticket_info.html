@@ -22,9 +22,18 @@
         .status-passed { background: #dc3545; }
         
         .wait-info { font-size: 1.5rem; color: #e74c3c; font-weight: bold; }
-        .btn-notify { background: #007bff; color: white; border: none; padding: 10px; width: 100%; border-radius: 10px; margin-top: 10px; cursor: pointer; display: none; }
+        .btn-notify { 
+            background: #007bff; color: white; border: none; padding: 15px; width: 100%; 
+            border-radius: 50px; margin-top: 10px; cursor: pointer; 
+            font-size: 1.1rem; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+            animation: pulse 2s infinite;
+        }
         
+        .warning-text { font-size: 0.8rem; color: #888; margin-top: 15px; }
+
         @keyframes blink { 50% { opacity: 0.5; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -55,7 +64,11 @@
             <strong id="current-q">{{ current_queue }}</strong>
         </div>
         
-        <button id="btn-enable-notify" class="btn-notify" onclick="requestNotify()">🔕 แตะเพื่อเปิดแจ้งเตือนเมื่อถึงคิว</button>
+        <button id="btn-enable-notify" class="btn-notify" onclick="activateQueueMode()">
+            🔔 กดที่นี่เพื่อรอเรียกคิว
+        </button>
+        
+        <p class="warning-text" id="wake-lock-status">⚠️ กรุณาเปิดหน้านี้ค้างไว้ (ห้ามปิดจอ)</p>
     </div>
 
     <audio id="alert-sound" src="/static/ding.mp3"></audio>
@@ -63,54 +76,68 @@
     <script>
         const socket = io();
         const myQueue = parseInt("{{ my_queue }}");
-        const hospCode = "{{ code }}"; // รับค่ารหัสจาก Server
+        const hospCode = "{{ code }}"; 
+        let wakeLock = null;
 
-        // ขออนุญาตแจ้งเตือน
-        function requestNotify() {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
+        // ฟังก์ชันเปิดโหมดรอคิว (ล็อกหน้าจอไม่ให้ดับ + เปิดเสียง)
+        async function activateQueueMode() {
+            // 1. ขอ Permission แจ้งเตือน
+            if (Notification.permission !== "granted") {
+                await Notification.requestPermission();
+            }
+
+            // 2. ปลดล็อกเสียง (เล่นแล้วหยุดทันที เพื่อให้ Browser ยอมให้เล่นเสียงต่อได้)
+            const audio = document.getElementById('alert-sound');
+            audio.play().catch(() => {});
+            audio.pause();
+            audio.currentTime = 0;
+
+            // 3. ล็อกหน้าจอไม่ให้ดับ (Wake Lock API)
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    document.getElementById('wake-lock-status').innerText = "✅ กำลังทำงาน: หน้าจอจะไม่ดับจนกว่าจะถึงคิว";
+                    document.getElementById('wake-lock-status').style.color = "green";
                     document.getElementById('btn-enable-notify').style.display = 'none';
-                    alert("เปิดแจ้งเตือนเรียบร้อย! เราจะแจ้งเตือนเมื่อถึงคิวท่าน");
+                    alert("เปิดโหมดรอคิวแล้ว! กรุณาเปิดหน้านี้ทิ้งไว้");
+                } else {
+                    alert("เครื่องนี้ไม่รองรับการล็อกหน้าจอ กรุณาแตะหน้าจอเรื่อยๆ");
                 }
-            });
-            // ปลดล็อกเสียงบนมือถือ
-            document.getElementById('alert-sound').play().catch(() => {});
-            document.getElementById('alert-sound').pause();
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
         }
 
-        // แสดงปุ่มเปิดแจ้งเตือนถ้ายังไม่ได้ขอ
-        if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-            document.getElementById('btn-enable-notify').style.display = 'block';
-        }
+        // Re-acquire lock if screen comes back
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                activateQueueMode();
+            }
+        });
 
-        // เข้าห้องรับข้อมูล Real-time
         socket.on('connect', () => {
             socket.emit('join', { code: hospCode });
         });
 
-        // เมื่อมีการเรียกคิวใหม่
         socket.on('update_display', (data) => {
             const currentQ = data.number;
             document.getElementById('current-q').innerText = String(currentQ).padStart(3, '0');
 
-            // คำนวณคิวที่รอใหม่
-            const wait = myQueue - currentQ - 1; // (คำนวณคร่าวๆ)
-            
+            const wait = myQueue - currentQ - 1; 
             const statusArea = document.getElementById('status-area');
 
             if (currentQ === myQueue) {
-                // 🔥 ถึงคิวแล้ว!
+                // ถึงคิวแล้ว!
                 statusArea.innerHTML = `
                     <div class="status-badge status-called">🔔 ถึงคิวของท่านแล้ว!</div>
                     <p>กรุณาไปที่ห้องตรวจทันที</p>
                 `;
-                notifyUser(); // สั่น + แจ้งเตือน
+                notifyUser(); 
                 
             } else if (currentQ > myQueue) {
                 statusArea.innerHTML = '<div class="status-badge status-passed">เลยคิวแล้ว</div><p>กรุณาติดต่อเจ้าหน้าที่</p>';
             } else {
-                // ยังรออยู่
-                const realWait = wait < 0 ? 0 : wait; // ป้องกันเลขติดลบ
+                const realWait = wait < 0 ? 0 : wait;
                 statusArea.innerHTML = `
                     <div class="status-badge status-waiting">รอเรียก</div>
                     <div class="wait-info">รออีก <span id="wait-count">${realWait}</span> คิว</div>
@@ -119,16 +146,14 @@
         });
 
         function notifyUser() {
-            // 1. สั่น (Android Only)
-            if (navigator.vibrate) {
-                navigator.vibrate([500, 200, 500, 200, 1000]);
-            }
+            // สั่น
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
 
-            // 2. เสียง (ถ้าเปิดหน้าจออยู่)
+            // เสียง
             const audio = document.getElementById('alert-sound');
             if(audio) audio.play().catch(e => console.log("Audio blocked"));
 
-            // 3. แจ้งเตือน (Notification)
+            // แจ้งเตือน
             if (Notification.permission === "granted") {
                 new Notification("🔔 ถึงคิวของท่านแล้ว!", {
                     body: `หมายเลขคิว ${myQueue} เชิญที่ห้องตรวจค่ะ`,
