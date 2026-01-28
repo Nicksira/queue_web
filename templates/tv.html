@@ -84,6 +84,7 @@
         });
 
         socket.on('update_display', (data) => {
+            console.log("ค่าที่ส่งมาจาก DB ใหม่:", data);
             const numEl = document.getElementById('q-num');
             const statusEl = document.getElementById('status');
 
