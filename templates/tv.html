@@ -31,7 +31,7 @@
     <div id="overlay">
         <div class="tap-icon">👆</div>
         <h1 class="text-white">แตะหน้าจอเพื่อเริ่มระบบเสียง</h1>
-        <p class="text-secondary">Click anywhere to start</p>
+        <p class="text-secondary">ระบบจะไม่ส่งเสียงจนกว่าจะกดปุ่มนี้</p>
     </div>
     <div class="header">
         <img src="/static/logo.png" onerror="this.style.display='none'" id="tv-logo">
@@ -49,7 +49,7 @@
         <div class="q-num" id="q-num">---</div>
         <div class="status" id="status">รอเรียก...</div>
     </div>
-    
+
     <script>
         const socket = io();
         const pathParts = window.location.pathname.split('/');
@@ -63,22 +63,17 @@
         }
         setInterval(updateClock, 1000); updateClock();
 
-        // แก้ไข Overlay ให้กดแล้วหายไป และปลดล็อคเสียง
         document.getElementById('overlay').onclick = function() {
             this.style.opacity = '0';
             setTimeout(() => { this.style.display = 'none'; }, 500);
             audioReady = true;
-            
-            // วอร์มเสียงให้ Android TV ตื่น
+            // ทดสอบเสียงทันทีที่กด
             if(window.responsiveVoice) {
-                responsiveVoice.speak(" ", "Thai Female");
+                responsiveVoice.speak("ระบบเสียงพร้อม", "Thai Female");
             }
-            console.log("ระบบเสียงพร้อมทำงาน");
         };
 
-        socket.on('connect', () => {
-            socket.emit('join', { code: hospCode });
-        });
+        socket.on('connect', () => { socket.emit('join', { code: hospCode }); });
 
         socket.on('update_settings', (settings) => {
             document.getElementById('tv-hospital-name').innerText = settings.hospital_name;
@@ -86,7 +81,7 @@
         });
 
         socket.on('update_display', (data) => {
-            console.log("Data Received:", data);
+            console.log("ข้อมูลที่ได้รับ:", data);
             const numEl = document.getElementById('q-num');
             const statusEl = document.getElementById('status');
 
@@ -95,24 +90,27 @@
                 statusEl.innerText = "เชิญที่ห้องตรวจ";
                 statusEl.style.background = "#28a745";
                 
-                // ใช้ ResponsiveVoice พูดแทนระบบเดิมของเครื่อง
-                if (data.play_sound && audioReady) {
-                    const textToSpeak = `เชิญคิวที่ ${data.number} ค่ะ`;
-                    
-                    if (window.responsiveVoice) {
-                        responsiveVoice.speak(textToSpeak, "Thai Female", {rate: 0.9, pitch: 1, volume: 1});
-                    } else if (window.speechSynthesis) {
-                        // fallback ถ้าเน็ตช้าจนโหลด ResponsiveVoice ไม่ทัน
-                        window.speechSynthesis.cancel();
-                        const msg = new SpeechSynthesisUtterance(textToSpeak);
-                        msg.lang = 'th-TH';
-                        window.speechSynthesis.speak(msg);
+                if (audioReady) {
+                    if (data.play_sound) {
+                        const text = `เชิญคิวที่ ${data.number} ค่ะ`;
+                        if (window.responsiveVoice && responsiveVoice.voiceSupport()) {
+                            responsiveVoice.speak(text, "Thai Female", {rate: 0.9});
+                        } else {
+                            // Fallback ถ้า ResponsiveVoice ไม่โหลด
+                            window.speechSynthesis.cancel();
+                            const msg = new SpeechSynthesisUtterance(text);
+                            msg.lang = 'th-TH';
+                            window.speechSynthesis.speak(msg);
+                        }
+                    } else {
+                        console.log("Server สั่งไม่ให้เล่นเสียง (play_sound = false)");
                     }
+                } else {
+                    console.log("ยังไม่ได้กดปุ่ม Overlay เพื่อเริ่มระบบเสียง");
                 }
             } else {
                 numEl.innerText = "---";
                 statusEl.innerText = "รอเรียก...";
-                statusEl.style.background = "rgba(255,255,255,0.1)";
             }
         });
     </script>
