@@ -77,28 +77,25 @@
         socket.on('connect', () => { socket.emit('join', { code: hospCode }); });
 
         socket.on('update_display', (data) => {
-            console.log("ได้รับข้อมูล:", data);
-            const numEl = document.getElementById('q-num');
-            const statusEl = document.getElementById('status');
+    const numEl = document.getElementById('q-num');
+    const statusEl = document.getElementById('status');
+    const player = document.getElementById('audio-player'); // ใช้ tag audio ที่พี่มีอยู่แล้ว
 
-            if (data.number > 0) {
-                numEl.innerText = String(data.number).padStart(3, '0');
-                statusEl.innerText = "เชิญที่ห้องตรวจ";
-                statusEl.style.background = "#28a745";
-                
-                // ระบบเล่นเสียง
-                if (data.play_sound && audioReady && window.speechSynthesis) {
-                    window.speechSynthesis.cancel();
-                    const text = `เชิญคิวที่ ${data.number} ค่ะ`;
-                    const msg = new SpeechSynthesisUtterance(text);
-                    msg.lang = 'th-TH';
-                    window.speechSynthesis.speak(msg);
-                }
-            } else {
-                numEl.innerText = "---";
-                statusEl.innerText = "รอเรียก...";
-            }
-        });
+    if (data.number > 0) {
+        numEl.innerText = String(data.number).padStart(3, '0');
+        statusEl.innerText = "เชิญที่ห้องตรวจ";
+        statusEl.style.background = "#28a745";
+        
+        // 🟢 เล่นเสียง MP3 จาก Server
+        if (data.play_sound && data.tts_url && audioReady) {
+            player.src = data.tts_url + "&t=" + new Date().getTime(); // ใส่ timestamp กัน cache
+            player.play().catch(e => console.log("Audio Play Error:", e));
+        }
+    } else {
+        numEl.innerText = "---";
+        statusEl.innerText = "รอเรียก...";
+    }
+});
     </script>
 </body>
 </html>
