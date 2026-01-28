@@ -66,54 +66,38 @@
         }
         setInterval(updateClock, 1000); updateClock();
 
-        document.getElementById('overlay').onclick = function() {
+        // 1. แก้ไขส่วน Overlay ให้กดแล้วหายไปได้จริง
+document.getElementById('overlay').onclick = function() {
     this.style.opacity = '0';
     setTimeout(() => { this.style.display = 'none'; }, 500);
     audioReady = true;
 
-    // 🚩 ส่วนที่เพิ่ม: ปลดล็อคระบบ Speech สำหรับ Android TV/Mobile
-    // สั่งให้มันพูด "คำว่างๆ" 1 ครั้ง เพื่อเป็นการขออนุญาตระบบ OS
+    // ปลดล็อคเสียงด้วยประโยคว่างๆ (ไม่ต้องใช้ตัวแปร utterance)
     const wakeup = new SpeechSynthesisUtterance(' ');
-    wakeup.lang = 'th-TH';
     window.speechSynthesis.speak(wakeup);
-    
-    console.log("ระบบเสียงถูกปลดล็อคแล้วบนอุปกรณ์นี้");
+    console.log("ปลดล็อคเสียงเรียบร้อย");
 };
 
-        socket.on('connect', () => {
-            socket.emit('join', { code: hospCode });
-        });
-
-        socket.on('update_settings', (settings) => {
-            document.getElementById('tv-hospital-name').innerText = settings.hospital_name;
-            document.getElementById('tv-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
-        });
-
-        socket.on('update_display', (data) => {
+// 2. ส่วนรับข้อมูลเรียกคิว (แก้ให้เสียงออก Android TV)
+socket.on('update_display', (data) => {
     const numEl = document.getElementById('q-num');
     const statusEl = document.getElementById('status');
 
     if (data.number > 0) {
-        const queueNumber = String(data.number).padStart(3, '0');
-        numEl.innerText = queueNumber;
+        numEl.innerText = String(data.number).padStart(3, '0');
         statusEl.innerText = "เชิญที่ห้องตรวจ";
         statusEl.style.background = "#28a745";
-
-        // 🔊 ส่วนของเสียงพูด (Text-to-Speech)
+        
         if (data.play_sound && audioReady) {
-    const textToSpeak = `เชิญคิวที่ ${data.number} ค่ะ`;
-    
-    // 🚩 ใช้ ResponsiveVoice แทน SpeechSynthesis เดิม
-    responsiveVoice.speak(textToSpeak, "Thai Female", {
-        rate: 0.9, 
-        pitch: 1, 
-        volume: 1
-    });
-}
-
-            // สั่งให้พูดทันที
-            window.speechSynthesis.cancel(); // ตัดเสียงเก่าที่ค้างอยู่
-            window.speechSynthesis.speak(utterance);
+            const textToSpeak = `เชิญคิวที่ ${data.number} ค่ะ`;
+            
+            // ตรวจสอบว่ามีระบบเสียงในเครื่องไหม (ป้องกัน Android TV ไม่มีเสียง)
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(textToSpeak);
+                msg.lang = 'th-TH';
+                window.speechSynthesis.speak(msg);
+            }
         }
     } else {
         numEl.innerText = "---";
