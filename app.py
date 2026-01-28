@@ -3,6 +3,9 @@ from flask_socketio import SocketIO, emit, join_room
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
+from gtts import gTTS
+import io
+from flask import send_file
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-change-this'
@@ -232,8 +235,12 @@ def handle_next(data_in):
         
         wait_count = QueueItem.query.filter_by(hospital_code=code, status='waiting').count()
         
-        emit('update_display', {'number': next_q.number, 'play_sound': True}, room=code)
-        emit('update_staff', {'waiting_count': wait_count}, room=code)
+        # ใน handle_next และ handle_repeat ให้แก้ตรง emit('update_display', ...) เป็นแบบนี้:
+emit('update_display', {
+    'number': next_q.number, 
+    'play_sound': True,
+    'tts_url': f"/tts?text=เชิญหมายเลขคิว {next_q.number} ค่ะ"
+}, room=code)
 
 @socketio.on('repeat_call')
 def handle_repeat(data_in):
@@ -272,6 +279,15 @@ def handle_reset(data_in):
 # สร้างตารางใน Database ถ้ายังไม่มี
 with app.app_context():
     db.create_all()
+
+@app.route('/tts')
+def text_to_speech():
+    text = request.args.get('text', 'เชิญหมายเลขคิวค่ะ')
+    tts = gTTS(text=text, lang='th')
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    return send_file(fp, mimetype='audio/mpeg')
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5005)
