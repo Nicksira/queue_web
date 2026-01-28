@@ -235,19 +235,27 @@ def handle_next(data_in):
         
         wait_count = QueueItem.query.filter_by(hospital_code=code, status='waiting').count()
         
-        # ใน handle_next และ handle_repeat ให้แก้ตรง emit('update_display', ...) เป็นแบบนี้:
-emit('update_display', {
-    'number': next_q.number, 
-    'play_sound': True,
-    'tts_url': f"/tts?text=เชิญหมายเลขคิว {next_q.number} ค่ะ"
-}, room=code)
+        # 🟢 ส่งเลขและ URL เสียง MP3 ไปที่หน้าจอ
+        emit('update_display', {
+            'number': next_q.number, 
+            'play_sound': True,
+            'tts_url': f"/tts?text=ขอเชิญหมายเลขคิว {next_q.number} ค่ะ"
+        }, room=code)
+        
+        emit('update_staff', {'waiting_count': wait_count}, room=code)
 
 @socketio.on('repeat_call')
 def handle_repeat(data_in):
     code = data_in['code']
     hospital = get_or_create_hospital(code)
-    # ส่งเลขปัจจุบันกลับไปหาหน้าจอ TV และสั่งให้เล่นเสียง
-    emit('update_display', {'number': hospital.current_queue, 'play_sound': True}, room=code)
+    
+    if hospital.current_queue > 0:
+        # 🟢 เรียกซ้ำก็ต้องส่ง tts_url ไปด้วย เสียงถึงจะดัง
+        emit('update_display', {
+            'number': hospital.current_queue, 
+            'play_sound': True,
+            'tts_url': f"/tts?text=ขอเชิญหมายเลขคิว {hospital.current_queue} อีกครั้งค่ะ"
+        }, room=code)
     
 @socketio.on('save_settings')
 def handle_save(data_in):
