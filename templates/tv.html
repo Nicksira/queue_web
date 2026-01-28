@@ -26,6 +26,11 @@
     </style>
 </head>
 <body>
+    <audio id="audio-player" style="display:none;"></audio>
+
+    <div id="overlay">
+        <div class="tap-icon">👆</div>
+        
     <div id="overlay">
         <div class="tap-icon">👆</div>
         <h1 class="text-white">แตะหน้าจอเพื่อเริ่มระบบเสียง</h1>
@@ -109,7 +114,7 @@
 function speakFallback(number) {
     if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(`เชิญหมายเลขคิว ${number} ค่ะ`);
+        const msg = new SpeechSynthesisUtterance(`เชิญคิวที่ ${number} ค่ะ`);
         msg.lang = 'th-TH';
         window.speechSynthesis.speak(msg);
     }
