@@ -84,28 +84,34 @@
         });
 
         socket.on('update_display', (data) => {
-            console.log("ค่าที่ส่งมาจาก DB ใหม่:", data);
-            const numEl = document.getElementById('q-num');
-            const statusEl = document.getElementById('status');
+    const numEl = document.getElementById('q-num');
+    const statusEl = document.getElementById('status');
 
-            if (data.number > 0) {
-                numEl.innerText = String(data.number).padStart(3, '0');
-                statusEl.innerText = "เชิญที่ห้องตรวจ";
-                statusEl.style.color = "#fff";
-                statusEl.style.background = "#28a745";
-                
-                // 🟢 เล่นเสียง MP3 ที่ส่งมาจาก Server
-                if(data.play_sound && data.sound_url && audioReady) {
-                    // ใส่ timestamp เพื่อไม่ให้ browser จำไฟล์เก่า (Cache Busting)
-                    player.src = data.sound_url + "?t=" + new Date().getTime();
-                    player.play().catch(e => console.log("Audio Error:", e));
-                }
-            } else {
-                numEl.innerText = "---";
-                statusEl.innerText = "รอเรียก...";
-                statusEl.style.background = "rgba(255,255,255,0.1)";
-            }
-        });
+    if (data.number > 0) {
+        const queueNumber = String(data.number).padStart(3, '0');
+        numEl.innerText = queueNumber;
+        statusEl.innerText = "เชิญที่ห้องตรวจ";
+        statusEl.style.background = "#28a745";
+
+        // 🔊 ส่วนของเสียงพูด (Text-to-Speech)
+        if (data.play_sound && audioReady) {
+            // สร้างข้อความที่จะพูด
+            const textToSpeak = `ขอเชิญ หมายเลขคิว ${data.number} ค่ะ`;
+            
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'th-TH'; // ตั้งเป็นภาษาไทย
+            utterance.rate = 0.9;      // ความเร็ว (0.1 - 10)
+            utterance.pitch = 1;      // ระดับเสียงสูงต่ำ
+
+            // สั่งให้พูดทันที
+            window.speechSynthesis.cancel(); // ตัดเสียงเก่าที่ค้างอยู่
+            window.speechSynthesis.speak(utterance);
+        }
+    } else {
+        numEl.innerText = "---";
+        statusEl.innerText = "รอเรียก...";
+    }
+});
     </script>
 </body>
 </html>
