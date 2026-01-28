@@ -77,25 +77,43 @@
         socket.on('connect', () => { socket.emit('join', { code: hospCode }); });
 
         socket.on('update_display', (data) => {
+    console.log("ได้รับข้อมูล:", data); // ดูใน Console ว่า tts_url มาไหม
     const numEl = document.getElementById('q-num');
     const statusEl = document.getElementById('status');
-    const player = document.getElementById('audio-player'); // ใช้ tag audio ที่พี่มีอยู่แล้ว
+    const player = document.getElementById('audio-player');
 
     if (data.number > 0) {
         numEl.innerText = String(data.number).padStart(3, '0');
         statusEl.innerText = "เชิญที่ห้องตรวจ";
         statusEl.style.background = "#28a745";
         
-        // 🟢 เล่นเสียง MP3 จาก Server
-        if (data.play_sound && data.tts_url && audioReady) {
-            player.src = data.tts_url + "&t=" + new Date().getTime(); // ใส่ timestamp กัน cache
-            player.play().catch(e => console.log("Audio Play Error:", e));
+        if (data.play_sound && audioReady) {
+            // 🟢 ถ้า Server ส่ง tts_url (MP3) มาให้เล่นตัวนี้ก่อน
+            if (data.tts_url) {
+                player.src = data.tts_url + "&t=" + new Date().getTime();
+                player.play().catch(e => {
+                    console.log("MP3 Play Error, trying fallback...");
+                    // ถ้า MP3 เล่นไม่ได้ ให้ใช้ระบบเครื่องอ่านแทน (Fallback)
+                    speakFallback(data.number);
+                });
+            } else {
+                speakFallback(data.number);
+            }
         }
     } else {
         numEl.innerText = "---";
         statusEl.innerText = "รอเรียก...";
     }
 });
+
+function speakFallback(number) {
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(`เชิญหมายเลขคิว ${number} ค่ะ`);
+        msg.lang = 'th-TH';
+        window.speechSynthesis.speak(msg);
+    }
+}
     </script>
 </body>
 </html>
