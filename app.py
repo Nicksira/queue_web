@@ -235,6 +235,17 @@ def handle_next(data_in):
         emit('update_display', {'number': next_q.number, 'play_sound': True}, room=code)
         emit('update_staff', {'waiting_count': wait_count}, room=code)
 
+@socketio.on('repeat_call')
+def handle_repeat(data_in):
+    code = data_in['code']
+    hospital = get_or_create_hospital(code)
+    
+    # 🚩 ส่งเลขเดิมกลับไปที่หน้าจอ TV และสั่งให้ play_sound เป็น True
+    emit('update_display', {
+        'number': hospital.current_queue, 
+        'play_sound': True
+    }, room=code)
+    
 @socketio.on('save_settings')
 def handle_save(data_in):
     code = data_in['code']
