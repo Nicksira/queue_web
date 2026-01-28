@@ -20,22 +20,20 @@
         .label { font-size: 3vw; color: #aaa; margin-bottom: 2vh; text-transform: uppercase; letter-spacing: 2px; }
         .q-num { font-size: 25vw; font-weight: bold; color: #00e676; line-height: 1; text-shadow: 0 0 50px rgba(0,230,118,0.4); font-variant-numeric: tabular-nums; }
         .status { font-size: 4vw; color: #ffeb3b; margin-top: 5vh; background: rgba(255,255,255,0.1); padding: 10px 50px; border-radius: 50px; backdrop-filter: blur(5px); }
-        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; transition: opacity 0.5s; }
         .tap-icon { font-size: 5rem; margin-bottom: 20px; animation: pulse 2s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
     </style>
 </head>
-    
 <body>
     <audio id="audio-player" style="display:none;"></audio>
-    <div id="overlay">
-        <div class="tap-icon">👆</div>
-        
+
     <div id="overlay">
         <div class="tap-icon">👆</div>
         <h1 class="text-white">แตะหน้าจอเพื่อเริ่มระบบเสียง</h1>
         <p class="text-secondary">Click anywhere to start</p>
     </div>
+
     <div class="header">
         <img src="/static/logo.png" onerror="this.style.display='none'" id="tv-logo">
         <div class="header-text">
@@ -47,6 +45,7 @@
             <div class="clock-date" id="realtime-date">...</div>
         </div>
     </div>
+
     <div class="main">
         <div class="label">หมายเลขคิว</div>
         <div class="q-num" id="q-num">---</div>
@@ -66,13 +65,13 @@
         }
         setInterval(updateClock, 1000); updateClock();
 
-        // แก้ไขให้กดแล้วหายไป 100% ไม่ Error
+        // กดปิดหน้ากากและปลดล็อคเสียง
         document.getElementById('overlay').onclick = function() {
             this.style.opacity = '0';
             setTimeout(() => { this.style.display = 'none'; }, 500);
             audioReady = true;
             
-            // ปลดล็อกเสียงด้วยเสียงว่างๆ (Safe สุดๆ)
+            // ปลดล็อคระบบเสียง (Safe)
             if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(new SpeechSynthesisUtterance(' '));
@@ -81,44 +80,50 @@
 
         socket.on('connect', () => { socket.emit('join', { code: hospCode }); });
 
-        socket.on('update_display', (data) => {
-    console.log("ได้รับข้อมูล:", data); // ดูใน Console ว่า tts_url มาไหม
-    const numEl = document.getElementById('q-num');
-    const statusEl = document.getElementById('status');
-    const player = document.getElementById('audio-player');
+        socket.on('update_settings', (settings) => {
+            document.getElementById('tv-hospital-name').innerText = settings.hospital_name;
+            document.getElementById('tv-logo').style.display = settings.show_logo ? 'inline-block' : 'none';
+        });
 
-    if (data.number > 0) {
-        numEl.innerText = String(data.number).padStart(3, '0');
-        statusEl.innerText = "เชิญที่ห้องตรวจ";
-        statusEl.style.background = "#28a745";
-        
-        if (data.play_sound && audioReady) {
-            // 🟢 ถ้า Server ส่ง tts_url (MP3) มาให้เล่นตัวนี้ก่อน
-            if (data.tts_url) {
-                player.src = data.tts_url + "&t=" + new Date().getTime();
-                player.play().catch(e => {
-                    console.log("MP3 Play Error, trying fallback...");
-                    // ถ้า MP3 เล่นไม่ได้ ให้ใช้ระบบเครื่องอ่านแทน (Fallback)
-                    speakFallback(data.number);
-                });
+        socket.on('update_display', (data) => {
+            console.log("ได้รับข้อมูล:", data);
+            const numEl = document.getElementById('q-num');
+            const statusEl = document.getElementById('status');
+            const player = document.getElementById('audio-player');
+
+            if (data.number > 0) {
+                numEl.innerText = String(data.number).padStart(3, '0');
+                statusEl.innerText = "เชิญที่ห้องตรวจ";
+                statusEl.style.background = "#28a745";
+                
+                if (data.play_sound && audioReady) {
+                    // 🟢 1. ลองเล่นเสียง MP3 (gTTS) จาก Server ก่อน
+                    if (data.tts_url) {
+                        player.src = data.tts_url + "&t=" + new Date().getTime();
+                        player.play().catch(e => {
+                            console.log("MP3 Error, using Fallback...");
+                            speakFallback(data.number);
+                        });
+                    } else {
+                        // 🟢 2. ถ้าไม่มี URL เสียง ให้ใช้เสียงในเครื่องแทน
+                        speakFallback(data.number);
+                    }
+                }
             } else {
-                speakFallback(data.number);
+                numEl.innerText = "---";
+                statusEl.innerText = "รอเรียก...";
+                statusEl.style.background = "rgba(255,255,255,0.1)";
+            }
+        });
+
+        function speakFallback(number) {
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(`เชิญคิวที่ ${number} ค่ะ`);
+                msg.lang = 'th-TH';
+                window.speechSynthesis.speak(msg);
             }
         }
-    } else {
-        numEl.innerText = "---";
-        statusEl.innerText = "รอเรียก...";
-    }
-});
-
-function speakFallback(number) {
-    if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(`เชิญคิวที่ ${number} ค่ะ`);
-        msg.lang = 'th-TH';
-        window.speechSynthesis.speak(msg);
-    }
-}
     </script>
 </body>
 </html>
