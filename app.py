@@ -239,7 +239,7 @@ def handle_next(data_in):
         emit('update_display', {
             'number': next_q.number, 
             'play_sound': True,
-            'tts_url': f"/tts?text=ขอเชิญหมายเลขคิว {next_q.number} ค่ะ"
+            'tts_url': f"/tts?text=เชิญคิวที่ {next_q.number} ค่ะ"
         }, room=code)
         
         emit('update_staff', {'waiting_count': wait_count}, room=code)
@@ -254,7 +254,7 @@ def handle_repeat(data_in):
         emit('update_display', {
             'number': hospital.current_queue, 
             'play_sound': True,
-            'tts_url': f"/tts?text=ขอเชิญหมายเลขคิว {hospital.current_queue} อีกครั้งค่ะ"
+            'tts_url': f"/tts?text=เชิญคิวที่ {hospital.current_queue} อีกครั้งค่ะ"
         }, room=code)
     
 @socketio.on('save_settings')
